@@ -6,11 +6,11 @@ CACHE_DIR = Path("cache").absolute()
 
 STORAGE_PATHS = {
     "collect": DATA_DIR / "collect.txt",
-    "testcollect": DATA_DIR / "testcollect.txt",
     "commits": DATA_DIR / "filtered_commits.txt",
     "performance": DATA_DIR / "commits",
     "repos": DATA_DIR / "repos.txt",
     "fail": DATA_DIR / "fail.txt",
+    "discovered": DATA_DIR / "discovered.txt",
     "clones": DATA_DIR / "tmp",
 
     "cmake-dep": CACHE_DIR / "cmake-dep.json"

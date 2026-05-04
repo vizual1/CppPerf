@@ -150,11 +150,6 @@ class CMakeProcess:
         result = subprocess.run(["docker", "commit", container_id, image_name], capture_output=True, text=True)
         if result.returncode != 0:
             logging.error(f"docker commit failed: {result.stderr}")
-        
-        if self.config.tar:
-            result = subprocess.run(["docker", "save", image_name, "-o", f"{image_name}.tar"], capture_output=True, text=True)
-            if result.returncode != 0:
-                logging.error(f"docker save failed: {result.stderr}")
 
     def copy_log_to_container(self, container_id: str, results_json: dict) -> None:
         log_config: str = f"Configuration output:\n" + '\n'.join(self.cmake_config_output) + "\n"
@@ -640,7 +635,7 @@ class CMakeProcess:
         try:
             logging.info(f"{' '.join(command)} in {self.test_path}")
             exit_code, stdout, stderr, time = self.docker.run_command_in_docker(
-                command, self.root, workdir=self.config.testing.docker_test_dir/self.test_path, check=False, timeout=self.config.max_test_time, log=False,
+                command, self.root, workdir=self.config.testing.docker_test_dir/self.test_path, check=False, timeout=self.config.testing.max_test_time, log=False,
             )
 
             # parse the times returned
@@ -694,7 +689,7 @@ class CMakeProcess:
 
         logging.debug(command + extra)
         exit_code, stdout, stderr, time = self.docker.run_command_in_docker(
-            command + extra, self.root, check=False, timeout=self.config.max_test_time, log=True
+            command + extra, self.root, check=False, timeout=self.config.testing.max_test_time, log=True
         )
         logging.debug(f"Individual CTest stdout:\n{stdout}")
 
@@ -776,7 +771,7 @@ class CMakeProcess:
     def _apply_diff(self) -> bool:
         """Applies given diff patch to /test_workspace/workspace/new commit"""
         container_patch_path = "/tmp/apply.patch"
-        with open(self.config.diff, "rb") as f:
+        with open(self.config.benchmark.diff, "rb") as f:
             data = f.read()
 
         # copies diff patch into the docker container

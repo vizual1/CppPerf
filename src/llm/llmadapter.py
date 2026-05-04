@@ -7,10 +7,12 @@ class LLMAdapter():
         self.config = config
         self.read_from_cache = read_from_cache
         self.save_to_cache = save_to_cache
+        if not self.config.env:
+            raise ValueError("Environment error: environment not set")
         if self.config.llm.base:
-            self.client = OpenAI(base_url=self.config.llm.base_url, api_key=self.config.llm.api_key)
+            self.client = OpenAI(base_url=self.config.llm.base_url, api_key=self.config.env.llm_api_key)
         else:
-            self.client = OpenAI(api_key=self.config.llm.api_key)
+            self.client = OpenAI(api_key=self.config.env.llm_api_key)
         self.model = model
 
     def _send_request(self, prompt: Prompt):

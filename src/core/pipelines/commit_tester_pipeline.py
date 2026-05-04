@@ -4,15 +4,11 @@ from src.config.config import Config
 from src.utils.commit import CommitHandler
 from src.core.docker.tester import DockerTester
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from src.utils.image_handling import config_image
 from src.utils.cpu import get_available_cpus, generate_cpu_sets
 from github.Commit import Commit
 
 def run_one_commit(repo_id: str, new_sha: str, old_sha: str, config: Config, cpuset_cpus: str = ""):
     try:
-        if not config_image(config, repo_id, new_sha):
-            return
-
         commit = CommitHandler("", config.storage_paths["clones"])
         repo = config.git_client.get_repo(repo_id)
         file = commit.get_file_prefix(repo_id)
@@ -29,12 +25,12 @@ class CommitTesterPipeline:
     """
     def __init__(self, config: Config):
         self.config = config
-        self.commit = CommitHandler(self.config.input_file or self.config.storage_paths['commits'], self.config.storage_paths['clones'])
+        self.commit = CommitHandler(self.config.input or self.config.storage_paths['commits'], self.config.storage_paths['clones'])
 
     def test_commit(self, commits_list: list[tuple[str, Commit]] = []) -> None:
-        if self.config.docker_image:
+        if self.config.benchmark.docker:
             # owner_name_sha or dockerhub_owner/dockerhub_name:owner_name_sha
-            owner, name, new_sha = tuple(self.config.docker_image.split(":")[-1].split("_"))
+            owner, name, new_sha = tuple(self.config.benchmark.docker.split(":")[-1].split("_"))
             repo_id = f"{owner}/{name}"
             old_sha = self.config.git_client.get_repo(repo_id).get_commit(new_sha).parents[0].sha
             commits = [(repo_id, new_sha, old_sha)]

@@ -49,7 +49,8 @@ class CommitHandler:
         Example: data/commits/<file_prefix>_<sha>/{old,new}
         """
         output = Path(self.output_path)
-        output.chmod(0o777)
+        if not output.exists():
+            output.mkdir(exist_ok=True)
         commit_root = output / f"{file_prefix}_{sha}"
         old_path = commit_root / "old"
         new_path = commit_root / "new"

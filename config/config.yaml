@@ -1,0 +1,26 @@
+llm:
+  base_url: http://127.0.0.1:11434/api/generate #https://openrouter.ai/api/v1
+  model1: qwen2.5:7b # openai/gpt-5-mini
+  model2: qwen3:8b # openai/gpt-5-mini
+  resolver_model: openai/gpt-5-mini
+  ollama_enabled: True # needs to set the model1/model2 to ollama models and base_url to ollama 
+  dependency_resolver_enabled: False # need to set resolver_model
+  
+testing:
+  warmup: 0
+  commit_test_times: 1
+  max_test_time: 1800
+  docker_test_dir: /test_workspace
+
+resources: # for running docker
+  cpus_per_job: 1
+  mem_limit: 2g
+  memswap_limit: 2g
+  max_parallel_jobs: 1
+  cpu_quota: 100000
+  cpu_period: 100000
+  
+benchmark:
+  min_exec_time_improvement: 0.05
+  min_p_value: 0.05
+  overall_decline_limit: -0.01

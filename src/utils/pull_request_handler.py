@@ -1,20 +1,8 @@
-import os
-from github import Github, Auth
 from github.Repository import Repository
 from github.Commit import Commit
-from tqdm import tqdm
-from src.config.config import Config
-from src.core.filter.commit_filter import CommitFilter
 
 # Helpful script to handle pull requests for commits
 # Merge commits that are linked to the same PR
-
-TOKEN = os.getenv("GITHUB_ACCESS_TOKEN", "")
-if not TOKEN:
-    raise RuntimeError("GITHUB_ACCESS_TOKEN not set")
-
-auth = Auth.Token(TOKEN)
-g = Github(auth=auth)
 
 # Caches
 commit_to_pr_cache = {} # (repo_full, sha) -> pr_number or None
@@ -29,11 +17,6 @@ def parse_line(line):
     return parts[0], parts[1], parts[2]
 
 repo_cache = {}
-
-def get_repo(repo_full):
-    if repo_full not in repo_cache:
-        repo_cache[repo_full] = g.get_repo(repo_full)
-    return repo_cache[repo_full]
 
 def get_pr_for_commit(repo, repo_full, sha):
     """Return PR number or None"""

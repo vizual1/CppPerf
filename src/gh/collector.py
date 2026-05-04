@@ -5,7 +5,9 @@ from pathlib import Path
 from src.config.config import Config
 from github.GithubException import GithubException, RateLimitExceededException
 from github.Repository import Repository
-
+from src.core.filter.structure_filter import StructureFilter
+from src.core.filter.process_filter import ProcessFilter
+from src.utils.writer import Writer
 class RepositoryCollector:
 
     # languages considered acceptable alongside C++
@@ -24,7 +26,7 @@ class RepositoryCollector:
 
     def get_repos(self) -> list[str]:
         """Get repository IDs from input file or default location."""
-        path = self.config.input_file or self.config.storage_paths["repos"]
+        path = self.config.input or self.config.storage_paths["repos"]
         logging.debug(f"Loading repos from: {path}")
         return self._get_repo_ids(path)
     
@@ -36,12 +38,12 @@ class RepositoryCollector:
             List of Repository objects that match language and composition criteria
         """
         seen_repo_ids = set()
-        if self.config.blacklist and Path(self.config.blacklist).is_file:
-            seen_repo_ids = set(self._get_repo_ids(self.config.blacklist))
+        if self.config.discover.blacklist and Path(self.config.discover.blacklist).is_file:
+            seen_repo_ids = set(self._get_repo_ids(self.config.discover.blacklist))
             logging.info(f"Loaded {len(seen_repo_ids)} existing repositories to skip")
 
         results: list[Repository] = []
-        limit = self.config.repos
+        limit = self.config.discover.repos
         count = 0
 
         logging.info(f"Starting GitHub query for popular {self.language} repos...")
@@ -58,8 +60,8 @@ class RepositoryCollector:
                 query = f"{pushed_range}, language:{self.language}, archived:false,"
 
                 if getattr(self.config, "stars", None):
-                    query += f" stars:<={self.config.stars}"
-                    query += f" stars:>={self.config.min_stars}"
+                    query += f" stars:<={self.config.discover.stars}"
+                    query += f" stars:>={self.config.discover.min_stars}"
 
                 logging.info(f"Query: {query}")
 
@@ -71,9 +73,10 @@ class RepositoryCollector:
                         if repo.full_name in seen_repo_ids:
                             logging.debug(f"Skipping {repo.full_name}: already in input list")
                             continue
-                        
-                        if self._is_valid_repo(repo):
+                        Writer(repo.full_name, self.config.storage_paths['discovered']).write_repo()
+                        if self._is_valid_repo(repo) and self.test_repo(repo):
                             results.append(repo)
+                            Writer(repo.full_name, self.config.output or self.config.storage_paths['collect']).write_repo()
                             seen_repo_ids.add(repo.full_name)
                             count += 1
                             pbar.update(1)
@@ -81,6 +84,8 @@ class RepositoryCollector:
 
                             if count >= limit:
                                 break
+                        else:
+                            Writer(repo.full_name, self.config.storage_paths['fail']).write_repo()
 
                         time.sleep(0.5)
 
@@ -131,6 +136,17 @@ class RepositoryCollector:
         except GithubException as e:
             logging.warning(f"Error checking languages for {repo.full_name}: {e}")
             return False
+        
+    def test_repo(self, repo: Repository) -> bool:
+        repo_id = repo.full_name
+        structure = StructureFilter(self.config)
+        process = ProcessFilter(self.config)
+        try:
+            if structure.is_valid(repo) and (not self.config.discover.test or process.valid_run("_".join(repo.full_name.split("/")), repo)):
+                return True
+        except Exception as e:
+            logging.exception(f"[{repo_id}] Error processing repository: {e}")
+        return False
     
     def _get_repo_ids(self, path: str) -> list[str]:
         """
@@ -149,12 +165,6 @@ class RepositoryCollector:
             List of repository IDs in 'owner/repo' format
         """
         repo_ids: list[str] = []
-
-        if self.config.repo_id:
-            repo_id = self.config.repo_id
-            repo_ids.append(repo_id)
-            logging.info(f"Using single repository from URL: {repo_id}")
-            return repo_ids
 
         try:
             file_path = Path(path)

@@ -1,115 +1,61 @@
 """Runtime configuration management."""
+import yaml
 from dataclasses import dataclass, field
 from typing import Optional
 from github import Auth, Github
 
 from src.config.prompts import Prompts
 from src.config.constants import *
-from src.config.settings import LLMSettings, TestingSettings, GitHubSettings, ResourceSettings, ResourceSettingsCrawl
-from src.utils.image_handling import dockerhub_containers, check_dockerhub
+from src.config.settings import LLMSettings, TestingSettings, ResourceSettings
+from src.config.env_loader import EnvSettings
+from src.utils.image_handling import dockerhub_containers
+from src.config.env_loader import load_env
+
+@dataclass
+class DiscoverConfig:
+    repos: int = 0
+    stars: int = 1000
+    min_stars: int = 20
+    filter: str = ""
+    test: bool = False
+    limit: int = -1
+    blacklist: str = ""
+@dataclass
+class ValidateConfig:
+    repositories: bool = False
+    commits: bool = False
+
+@dataclass
+class BenchmarkConfig:
+    docker: str = ""
+    diff: str = ""
+
+@dataclass
+class ArtifactConfig:
+    generate: bool = True
+    pull: bool = False
+    push: bool = False
 
 @dataclass
 class Config:
     """
     GitHub Repository Collection, Structural, Build and Test Validation
     """
-    # collect repositories from GitHub
-    collect: bool = False
-    # compiles and tests the most recent commit of the collected repositories
-    test: bool = False 
-    # indicates the number of repositories collected from GitHub before stopping
-    repos: int = 0 
-    # indicates the maximum number of stars of repositories collected from GitHub
-    stars: int = 1000
-    # path to file of already collected repositories that shouldn't be collected again
-    blacklist: str = "" 
-    # given a file of repositories, runs "--collect --test" without collecting repositories from GitHub 
-    testcollect: bool = False 
-
-    """
-    GitHub Commit Collection, Structural, Build and Test Validation
-    """
-    # collect, filter, build and test commits from GitHub repositories
-    commits: bool = False 
-    # build and test commits from filtered commits (candidate), collected from "--commits" 
-    testcommits: bool = False
-    # filter type for collecting commits given repositories
-    filter: str = ""
-    # collect only up to limit amount of commits
-    limit: int = -1
-
-    """
-    Docker Image Handling
-    """
-    # generates Docker image from "--commits" or "--testcommits" JSON results
-    genimages: bool = False
-    genforce: bool = False # overwrites Docker images already generated
-    # tests the commits inside the Docker image and statistically evaluate the results
-    testdocker: bool = False
-    # saves the Docker container from running "--testdocker" as a .tar file
-    tar: bool = False
-    # does not save the Docker image from running "--testcommits"
-    noimage: bool = False
-    # Docker image name input
-    docker: str = ""
-    docker_image: str = field(init=False)
-
-    """
-    Dockerhub Handling
-    """
-    use_dockerhub: bool = True
-    # environment variables
-    dockerhub_user: str = field(init=False) # export DOCKERHUB_USER=...
-    dockerhub_repo: str = field(init=False) # export DOCKERHUB_REPO=...
-    # checks if the image is already uploaded to Dockerhub
-    check_dockerhub: bool = False 
-    # if check_dockerhub then all the Docker images on dockerhub_user/dockerhub_repo will be collected
-    dockerhub_containers: list[str] = field(init=False)
-    # pushes images to Dockerhub, requires DOCKER_HUB_USER and DOCKER_HUB_REPO environment variables 
-    pushimages: bool = False
-    # forces "docker push" to Dockerhub via "--pushimages"
-    dockerhub_force: bool = False
-    # pulls images from Dockerhub, requires DOCKER_HUB_USER and DOCKER_HUB_REPO environment variables 
-    pullimages: bool = False
-
-    """
-    OpenHands Patch
-    """
-    # generates a patch
-    patch: bool = False
-    # prompt for generating a patch
-    prompt: str = ""
-    # test a patch
-    testpatch: bool = False
-    # path to diff file input for running "--testpatch"
-    diff: str = ""
-    
+    command: str = ""
     input: str = ""
     output: str = ""
-    repo: str = ""
-    sha: str = ""
-    
-    # File paths
-    repo_id: str = field(init=False)
-    input_file: str = field(init=False)
-    output_file: str = field(init=False)
-    output_fail: str = "data/fail.txt"
-    
-    """
-    Commit Analysis Settings
-    """
-    min_exec_time_improvement: float = 0.05
-    min_p_value: float = 0.05
-    overall_decline_limit: float = -0.01
-    max_test_time: int = 1800 # in seconds
-    min_stars: int = 20
+    env: Optional[EnvSettings] = field(init=False, default=None)
+
+    discover: DiscoverConfig = field(default_factory=DiscoverConfig)
+    validate: ValidateConfig = field(default_factory=ValidateConfig)
+    benchmark: BenchmarkConfig = field(default_factory=BenchmarkConfig)
+    artifact: ArtifactConfig = field(default_factory=ArtifactConfig)
     
     """
     Configurations Settings
     """
     llm: LLMSettings = field(default_factory=LLMSettings)
     testing: TestingSettings = field(default_factory=TestingSettings)
-    github: GitHubSettings = field(default_factory=GitHubSettings)
     resources: ResourceSettings = field(default_factory=ResourceSettings)
     prompts: Prompts = field(default_factory=Prompts)
 
@@ -130,39 +76,39 @@ class Config:
     _git: Optional[Github] = field(init=False, default=None)
 
     def __post_init__(self):
-        self.repo_id = self.repo.removeprefix("https://github.com/").strip() if self.repo else self.repo
-        self.input_file = self.input
-        self.output_file = self.output
-        self.docker_image = self.docker
-        if self.testcollect:
-            self.resources = ResourceSettingsCrawl()
-        if self.use_dockerhub or self.check_dockerhub:
-            self.dockerhub_user, self.dockerhub_repo = check_dockerhub()
-        if self.check_dockerhub:
-            self.dockerhub_containers = dockerhub_containers(self.dockerhub_user, self.dockerhub_repo)
+        self.env = load_env()
+
+        load_runtime_overrides(
+            self.llm,
+            self.testing,
+            self.resources
+        )
+
+        if self.llm.ollama_enabled:
+            self.llm.ollama_stage1_model = self.llm.model1
+            self.llm.ollama_stage2_model = self.llm.model2
+            self.llm.ollama_resolver_model = self.llm.resolver_model
+            self.llm.ollama_url = self.llm.base_url
+
         self._validate()
         self._setup_github()
-
+        if self.env and self.command == "artifact" and (self.artifact.pull or self.artifact.push):
+            self.dockerhub_containers = dockerhub_containers(self.env.dockerhub_user, self.env.dockerhub_repo)
+        
     def _validate(self) -> None:
         """Validate configuration consistency."""
-        if self.filter not in ("simple", "llm", "issue"):
-            raise ValueError(f"Unknown filter type: {self.filter}")
+        if not self.env:
+            raise ValueError(f"Environment error: environment not set")
 
-        if self.stars < 0 or self.repos <= 0:
-            raise ValueError("Stars and limit must be positive.")
+        if self.discover.filter not in ("simple", "llm", "issue", ""):
+            raise ValueError(f"Unknown filter type: {self.discover.filter}")
 
         if str(self.testing.docker_test_dir) == "/workspace":
             raise ValueError("Docker test directory cannot be '/workspace'")
-            
-        if not self.github.access_token:
-            raise ValueError("GitHub access token is required")
-        
-        if self.sha and not self.repo:
-            raise ValueError("SHA value needs an accompanying repository owner/name")
 
     def _setup_github(self):
         """Initialize GitHub client."""
-        self._auth = Auth.Token(self.github.access_token)
+        self._auth = Auth.Token(self.env.github_token if self.env else "")
         self._git = Github(auth=self._auth)
 
     @property
@@ -171,3 +117,30 @@ class Config:
         if self._git is None:
             raise RuntimeError("GitHub client not initialized")
         return self._git
+    
+
+def apply_overrides(obj, values: dict):
+    for key, value in values.items():
+        if hasattr(obj, key):
+            setattr(obj, key, value)
+
+def load_runtime_overrides(
+    llm,
+    testing,
+    resources,
+    path: str = "config/config.yaml"
+):
+    config_path = Path(path)
+
+    if not config_path.exists():
+        return
+
+    with config_path.open("r", encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+
+    apply_overrides(llm, raw.get("llm", {}))
+    apply_overrides(testing, raw.get("testing", {}))
+    apply_overrides(resources, raw.get("resources", {}))
+
+    benchmark = raw.get("benchmark", {})
+    apply_overrides(testing, benchmark)

@@ -25,16 +25,6 @@ def delete_image(repo_id: str = "", sha: str = "", other: str = "") -> None:
     except docker.errors.APIError as e: #type:ignore
         logging.info(f"Failed to delete image: {e}")
 
-def check_dockerhub() -> tuple[str, str]:
-    dockerhub_user = os.environ.get("DOCKER_HUB_USER", "")
-    dockerhub_repo = os.environ.get("DOCKER_HUB_REPO", "")
-    if not dockerhub_user:
-        logging.warning("DOCKERHUB_USER environment variable is not set")
-    if not dockerhub_repo:
-        logging.warning("DOCKERHUB_REPO environment variable is not set")
-    return dockerhub_user, dockerhub_repo
-
-
 def dockerhub_containers(dockerhub_user: str, dockerhub_repo: str) -> list[str]:
     tags = []
     url = f"https://hub.docker.com/v2/repositories/{dockerhub_user}/{dockerhub_repo}/tags?page_size=100"
@@ -50,28 +40,3 @@ def dockerhub_containers(dockerhub_user: str, dockerhub_repo: str) -> list[str]:
         url = data["next"]  # None when no more pages
 
     return tags
-
-def config_image(config, repo_id: str, new_sha: str) -> bool:
-    """Configure the docker image depending on flags (check, delete)."""
-    local_image = image(repo_id, new_sha)
-
-    # checks if the image is already uploaded to dockerhub given a DOCKERHUB_USER and DOCKERHUB_REPO
-    if not config.genforce and config.genimages and config.check_dockerhub and local_image in config.dockerhub_containers:
-        logging.info("Image already exists in dockerhub")
-        return False
-    
-    # deletes the docker image if it exists (because of genforce)
-    if config.genforce and image_exists(repo_id, new_sha):
-        logging.info("Image already exists, delete image to overwrite")
-        delete_image(repo_id, new_sha)
-        if config.check_dockerhub:
-            remote_image = f"{config.dockerhub_user}/{config.dockerhub_repo}:{local_image}"
-            delete_image(other=remote_image)
-        return False
-
-    # the docker image is already generated for repo_id and new_sha
-    if config.genimages and image_exists(repo_id, new_sha):
-        logging.info("Image already exists, no need to generate the docker image")
-        return False
-    
-    return True

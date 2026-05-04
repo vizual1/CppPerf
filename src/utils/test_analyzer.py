@@ -21,8 +21,8 @@ class TestAnalyzer:
 
         self.warmup = self.config.testing.warmup
         self.commit_test_times = self.config.testing.commit_test_times
-        self.min_exec_time_improvement = self.config.min_exec_time_improvement
-        self.min_p_value = self.config.min_p_value
+        self.min_exec_time_improvement = self.config.testing.min_exec_time_improvement
+        self.min_p_value = self.config.testing.min_p_value
 
     def relative_improvement(self, old_times: list[float], new_times: list[float]):
         """relative improvement of new_times to old_times"""
@@ -121,7 +121,7 @@ class TestAnalyzer:
     ) -> bool:
         p_mwu = self.get_mannwhitney_pvalue(old_times, new_times)
         delta  = self.relative_improvement(old_times, new_times)
-        return bool(p_mwu < self.min_p_value) and bool(delta > self.config.min_exec_time_improvement)
+        return bool(p_mwu < self.min_p_value) and bool(delta > self.config.testing.min_exec_time_improvement)
     
     def get_binom_improvement_p_value(
         self,
@@ -190,7 +190,25 @@ class TestAnalyzer:
         patches: list[str] = []
 
         messages = [commit.commit.message]
-        patches = [self.get_diff(commit)]
+        if self.config.benchmark.diff:
+            patch_str, files_changed, total_add, total_del = self.build_diff_from_patch_file()
+
+            patches = [patch_str]
+        else:
+            patches = [self.get_diff(commit)]
+            files_changed = [
+                {
+                    "filename": f.filename,
+                    "status": f.status,
+                    "additions": f.additions,
+                    "deletions": f.deletions,
+                    "changes": f.changes,
+                    "patch": f.patch
+                }
+                for f in commit.files or []
+            ]
+            total_add = commit.stats.additions
+            total_del = commit.stats.deletions
         
         commit_filter = CommitFilter(repo, commit, self.config)
         extracted_refs = commit_filter.extract_fixed_issues()
@@ -212,19 +230,9 @@ class TestAnalyzer:
             "commit_message": messages,
             "commit_date": commit.commit.author.date.isoformat(),
             "patch": patches,
-            "files_changed": [
-                {
-                    "filename": f.filename,
-                    "status": f.status,
-                    "additions": f.additions,
-                    "deletions": f.deletions,
-                    "changes": f.changes,
-                    "patch": f.patch
-                }
-                for f in commit.files or []
-            ],
-            "lines_added": commit.stats.additions,
-            "lines_removed": commit.stats.deletions, 
+            "files_changed": files_changed,
+            "lines_added": total_add,
+            "lines_removed": total_del, 
         }
         build_info = {
             "old_build_script": old_build_cmd,
@@ -391,6 +399,75 @@ class TestAnalyzer:
                 patch = f.patch
                 diff_lines.append(patch)
         return "\n".join(diff_lines)
+    
+    def parse_patch(self, patch_text: str):
+        files = []
+        current = None
+
+        for line in patch_text.splitlines():
+            if line.startswith("diff --git"):
+                if current:
+                    files.append(current)
+
+                parts = line.split()
+                filename = parts[3][2:] if len(parts) >= 4 else "unknown"
+
+                current = {
+                    "filename": filename,
+                    "patch_lines": [],
+                    "additions": 0,
+                    "deletions": 0,
+                }
+
+            elif current is not None:
+                current["patch_lines"].append(line)
+
+                if line.startswith("+") and not line.startswith("+++"):
+                    current["additions"] += 1
+                elif line.startswith("-") and not line.startswith("---"):
+                    current["deletions"] += 1
+
+        if current:
+            files.append(current)
+
+        return files
+    
+    def build_diff_from_patch_file(self):
+        if not self.config.benchmark.diff:
+            return "", [], 0, 0
+
+        with open(self.config.benchmark.diff, "r", encoding="utf-8", errors="replace") as f:
+            text = f.read()
+
+        parsed_files = self.parse_patch(text)
+
+        diff_lines = []
+        files_changed = []
+        total_add = 0
+        total_del = 0
+
+        for f in parsed_files:
+            patch_str = "\n".join(f["patch_lines"])
+
+            diff_lines.append(f"--- {f['filename']}")
+            diff_lines.append(patch_str)
+
+            additions = f["additions"]
+            deletions = f["deletions"]
+
+            total_add += additions
+            total_del += deletions
+
+            files_changed.append({
+                "filename": f["filename"],
+                "status": "modified",  # can't reliably infer without extra parsing
+                "additions": additions,
+                "deletions": deletions,
+                "changes": additions + deletions,
+                "patch": patch_str
+            })
+
+        return "\n".join(diff_lines), files_changed, total_add, total_del
     
     def cohens_d(self, old, new) -> float:
         """

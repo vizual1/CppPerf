@@ -16,7 +16,6 @@ def sigint_handler(sig, frame):
             pass
     sys.exit(1)
 
-
 def main() -> None:
     logging.info("Starting the GitHub repository pipeline...")
     start()

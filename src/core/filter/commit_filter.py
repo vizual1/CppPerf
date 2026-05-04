@@ -23,18 +23,18 @@ class CommitFilter:
             name = self.config.llm.ollama_stage1_model + "_" + self.config.llm.ollama_stage2_model  
         else:
             name = self.config.llm.model1 + "_" + self.config.llm.model2
-        cached = self.cache.get(self.repo.full_name, {}).get(self.config.filter + (f"_{name}" if self.config.filter == "llm" else ""), {}).get(self.commit.sha)
+        cached = self.cache.get(self.repo.full_name, {}).get(self.config.discover.filter + (f"_{name}" if self.config.discover.filter == "llm" else ""), {}).get(self.commit.sha)
         if cached is not None:
-            logging.info(f"Cache hit for {self.commit.sha} ({self.config.filter}) -> {cached}")
+            logging.info(f"Cache hit for {self.commit.sha} ({self.config.discover.filter}) -> {cached}")
             return cached
 
-        if self.config.filter == "simple":
+        if self.config.discover.filter == "simple":
             result = self._simple_filter() and self.only_cpp_source_modified()
             self._save_cache(self.commit, result)
-        elif self.config.filter == "llm":
+        elif self.config.discover.filter == "llm":
             result = self.only_cpp_source_modified() and self._llm_filter() 
             self._save_cache(self.commit, result, extra=f"_{name}")
-        elif self.config.filter == "issue":
+        elif self.config.discover.filter == "issue":
             result = self.only_cpp_source_modified() and self._fixed_performance_issue() is not None
             self._save_cache(self.commit, result, extra=f"_{name}")
         else:
@@ -206,7 +206,7 @@ class CommitFilter:
     
     def _save_cache(self, commit: Commit, decision: bool, extra: str = "") -> None:
         repo_name = self.repo.full_name
-        filter_type = self.config.filter + extra
+        filter_type = self.config.discover.filter + extra
 
         if repo_name not in self.cache:
             self.cache[repo_name] = {}

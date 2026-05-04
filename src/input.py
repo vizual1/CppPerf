@@ -1,6 +1,14 @@
 import argparse, sys
 from src.core.controller import Controller
-from src.config.config import Config
+from src.config.config import *
+
+def add_output_args(p):
+    group = p.add_argument_group("Output")
+    group.add_argument("--output", type=str, default="")
+
+def add_input_args(p):
+    group = p.add_argument_group("Input")
+    group.add_argument("--input", type=str, default="")
 
 def setup_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -8,101 +16,90 @@ def setup_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
-    # mode selection
-    mode = parser.add_argument_group()
-    mode.add_argument("--collect", action="store_true",
-                      help="Collect and structurally validate (most recent commit) C++ Repositories from GitHub. Set with --repos flag.")
-    mode.add_argument("--testcollect", action="store_true",
-                      help="Validate the build and test (most recent commit) of C++ repositories without the collect process.")
-    
-    mode.add_argument("--commits", action="store_true",
-                      help="Gather and filter commits from C++ Repositories. Set with --filter flag.")
-    mode.add_argument("--testcommits", action="store_true",
-                      help="Test commits between two versions and generates a commit file.")
-    
-    mode.add_argument("--test", action="store_true",
-                      help=
-                        "1. Validate the build and test (most recent commit) of C++ repositories. Set with --collect flag."
-                        "2. Build and tests collected commits. Set with --collect and --filter flags.")
-    
-    mode.add_argument("--genimages", action="store_true",
-                      help="Given a folder of json files generated via the --testcommits flag, " \
-                      "generate and save docker images (no test is run here) of each json file.")
-    mode.add_argument("--pushimages", action="store_true",
-                      help="Given a folder of json files generated via the --testcommits flag, " \
-                      "push the image to Dockerhub.")
-    mode.add_argument("--pullimages", action="store_true",
-                      help="Given a folder of json files generated via the --testcommits flag, " \
-                      "pull the image from Dockerhub.")
-    mode.add_argument("--testdocker", action="store_true",
-                      help="Build and test docker images. " \
-                      "Given a file of docker images 'owner_repo_newsha' with commits in " \
-                      "'/test_workspace/workspace/new' and '/test_workspace/workspace/old' " \
-                      "Docker images should be named 'owner_repo_newsha' or 'dockerhub_user/dockerhub_repo:owner_repo_newsha'")
-    
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    discover = subparsers.add_parser("discover", help="Mining, filtering and validation of repositories or commits.")
+    discover.add_argument("--test", action="store_true", help="Validate the build and test (most recent commit) of the mined repositories, or Build, tests, evaluate and containerize collected and filtered commits.")
+    add_input_args(discover)
+    add_output_args(discover)
+    validate = subparsers.add_parser("validate", help="Addition to discover command for validation of repositories or commits if not done before.")
+    add_input_args(validate)
+    add_output_args(validate)
+    benchmark = subparsers.add_parser("benchmark", help="Benchmarking docker images and docker images with patches.")
+    add_input_args(benchmark)
+    add_output_args(benchmark)
+    artifact = subparsers.add_parser("artifact")
+    add_input_args(artifact)
+    add_output_args(artifact)
 
-    mode.add_argument("--patch", action="store_true",
-                      help="Given owner/repo (repo_id), a commit SHA value and a prompt " \
-                      "use OpenHands to generate a patch. Generates a diff file.")
-    mode.add_argument("--testpatch", action="store_true",
-                      help="Build and test docker images." \
-                      "Given a file of docker images (or a docker image tar files) with a " \
-                      "commit at '/test_workspace/workspace/old' and its patch in '/test_workspace/workspace/patch'. " \
-                      "Docker images should be named 'owner_repo_newsha' or 'dockerhub_user/dockerhub_repo:owner_repo_newsha'")
-    
-    # input/output
-    io_group = parser.add_argument_group("Input / Output Options")
-    io_group.add_argument("--blacklist", type=str, 
-                          help="Sets a blacklist for collecting repositores (e.g. data/testcollect.txt)")
-    io_group.add_argument("--input", type=str,
-                          help="Path to input file (e.g., crawl.txt).")
-    io_group.add_argument("--output", type=str,
-                          help="Output file path (default: data/results.txt).")
-    
-    
+    source_group = discover.add_argument_group("Source Options")
+    source_group.add_argument("--repos", type=int, default=10, help="Limit number of mined repositories (default: 10)")
+    source_group.add_argument("--stars", type=int, default=1000, help="Maximum popularity (star count) for mined repositories (default: 1000).")
+    source_group.add_argument("--min_stars", type=int, default=20, help="Minimum popularity (star count) for mined repositories (default: 20).")
+    source_group.add_argument("--blacklist", type=str, help="Blacklist to skip repositories in the mining process.")
 
-    io_group.add_argument("--repo", type=str,
-                          help="Repository URL or repo full name (e.g., owner/repo).")
-    io_group.add_argument("--prompt", type=str,
-                          help="Prompt for OpenHands")
+    filter_group = discover.add_argument_group("Filtering")
+    filter_group.add_argument("--filter", choices=["simple", "llm", "issue"])
+    filter_group.add_argument("--limit", type=int, default=-1, help="Limits amount of commits collected from repositories (default -1 = all commits).")
 
-    commit_group = parser.add_argument_group("Commit Options")
-    commit_group.add_argument("--sha", type=str,
-                              help="SHA for testing.")
+    test_group = validate.add_argument_group("Testing")
+    test_group.add_argument("--repositories", action="store_true", help="--test without mining for repositories. requires input file.")
+    test_group.add_argument("--commits", action="store_true", help="--test without filtering for commits, requires input file.")
 
-    # === Filtering / Analysis ===
-    filter_group = parser.add_argument_group("Filtering and Analysis Options")
-    filter_group.add_argument("--repos", type=int, default=10,
-                              help="Limit number of repositories or commits (default: 10).")
-    filter_group.add_argument("--stars", type=int, default=1000,
-                              help="Minimum star count for popular repos (default: 1000).")
-    filter_group.add_argument("--filter", type=str, choices=["simple", "llm", "issue"],
-                              default="llm", help="Filter strategy to use (default: llm).")
-    filter_group.add_argument("--limit", type=int, default=-1,
-                              help="Limit number of collected commits (default: -1 (unlimited)).")
-    # === Docker / Testing ===
-    docker_group = parser.add_argument_group("Docker and Testing Options")
-    docker_group.add_argument("--tar", type=str,
-                              help="Saves the docker image as a tar file.")
-    docker_group.add_argument("--docker", type=str,
-                              help="Docker image to create a docker container that builds and tests the commits.")
-    docker_group.add_argument("--diff", type=str,
-                              help="Applies the diff patch to the old (original) commit in the docker container.")
-    docker_group.add_argument("--check_dockerhub", action="store_true",
-                              help="Checks if the image is already uploaded to dockerhub. Used in --pushimages")
-    docker_group.add_argument("--noimage", action="store_true",
-                              help="Does not save the docker image for testcommits")
+    docker_group = benchmark.add_argument_group("Docker Benchmark")
+    docker_group.add_argument("--docker", type=str, help="Test and evaluate docker images of commits.")
+    docker_group.add_argument("--diff", type=str, help="Applies the diff patch to the old (original) commit in the docker container.")
+
+    artifact_group = artifact.add_argument_group("Artifacts")
+    artifact_group.add_argument("--generate", action="store_true", help="Given a folder of json files of commits evaluations generated with discover or validate, create a docker image for each json file (no test run).")
+    artifact_group.add_argument("--pull", action="store_true", help="Given a folder of json files of commits evaluations generated with discover or validate, pull the docker image from Dockerhub if it exists.")
+    artifact_group.add_argument("--push", action="store_true", help="Given a folder of json files of commits evaluations generated with discover or validate, push the image to Dockerhub (Docker image must exist before, else run --generate first).")
+    
     return parser
 
 
 def create_config(args: argparse.Namespace) -> Config:
     """Create a Config object from argparse arguments."""
     try:
-        cfg = Config(**vars(args))
+        cfg = Config(
+            command=args.command,
+            input=args.input,
+            output=args.output
+        )
+
+        if args.command == "discover":
+            cfg.discover = DiscoverConfig(
+                repos=args.repos,
+                stars=args.stars,
+                min_stars=args.min_stars,
+                filter=args.filter,
+                test=args.test,
+                limit=args.limit,
+                blacklist=args.blacklist
+            )
+
+        elif args.command == "validate":
+            cfg.validate = ValidateConfig(
+                repositories=args.repositories,
+                commits=args.commits,
+            )
+
+        elif args.command == "benchmark":
+            cfg.benchmark = BenchmarkConfig(
+                docker=args.docker,
+                diff=args.diff,
+            )
+
+        elif args.command == "artifact":
+            cfg.artifact = ArtifactConfig(
+                generate=args.generate,
+                pull=args.pull,
+                push=args.push,
+            )
+
+        return cfg
     except ValueError as e:
         print(f"Configuration error: {e}")
         sys.exit(2)
-    return cfg
 
 
 def start() -> None:

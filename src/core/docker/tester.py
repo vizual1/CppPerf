@@ -35,7 +35,7 @@ class DockerTester:
                 logging.error(f"new process ({new_process}) or old process ({old_process}) failed.")
                 return
 
-            if self.config.genimages and not self.config.test:
+            if self.config.command == "artifact" and self.config.artifact.generate:
                 self._gen_image_only(repo, new_process, old_process, new_sha)
             else:
                 self._analyzer_results(repo, new_process, old_process, new_sha, old_sha)
@@ -56,8 +56,8 @@ class DockerTester:
         """
         try:
             new_process, old_process = self._setup_commits(repo, new_path, old_path, new_sha, old_sha, cpuset_cpus)
-            # --genimages just generates the docker image from an existing json results file
-            if (not self.config.genimages or self.config.test):
+            # artifact --generate just generates the docker image from an existing json results file
+            if (not (self.config.command == "artifact" and self.config.artifact.generate) or self.config.discover.test or self.config.command == "validate"):
                 self._run_tests(repo, new_process, old_process, new_sha)
             
             yield new_process, old_process
@@ -72,7 +72,7 @@ class DockerTester:
             yield None, None
 
         finally:
-            msg = repo.full_name if repo else self.config.docker_image
+            msg = repo.full_name if repo else self.config.benchmark.docker
             self._remove_commits_folders(msg, new_path, old_path)
             if new_process:
                 new_process.docker.stop_container(msg)
@@ -95,8 +95,8 @@ class DockerTester:
         new_process = None
         old_process = None
 
-        if self.config.docker_image and image_exists(other=self.config.docker_image):
-            container_name = self.config.docker_image
+        if self.config.benchmark.docker and image_exists(other=self.config.benchmark.docker):
+            container_name = self.config.benchmark.docker
 
             new_process = new_pf.docker_commit_setup_and_build("New", container_name=container_name, startup=True, cpuset_cpus=cpuset_cpus)
             
@@ -146,7 +146,7 @@ class DockerTester:
     def _test(self, repo: Repository, new_process: CMakeProcess, old_process: CMakeProcess, has_test_framework: bool, new_test_cmd: list[list[str]], old_test_cmd: list[list[str]], new_sha: str) -> None: 
         warmup = self.config.testing.warmup
         test_repeat = self.config.testing.commit_test_times
-        msg = f"{repo.full_name}:{new_sha}" if repo else self.config.docker_image
+        msg = f"{repo.full_name}:{new_sha}" if repo else self.config.benchmark.docker
 
         for new_cmd, old_cmd in tqdm(zip(new_test_cmd, old_test_cmd), total=len(new_test_cmd), position=1, leave=False, mininterval=5): 
             for _ in tqdm(range(warmup+test_repeat), total=warmup+test_repeat, desc="Commit pair test", position=2, leave=False, mininterval=5):
@@ -218,7 +218,7 @@ class DockerTester:
         logging.info(f"overall change: {overall_change}")
         overall_change_with_new_outperforms_old = (
             len(isolated_improvements['new_outperforms_old']) > 0 and 
-            overall_change > self.config.overall_decline_limit and
+            overall_change > self.config.testing.overall_decline_limit and
             len(isolated_improvements['old_outperforms_new']) == 0
         )
 
@@ -231,10 +231,10 @@ class DockerTester:
         writer = Writer(repo.full_name, self.config.output or self.config.storage_paths["performance"])
         writer.write_results(results)
 
-        if not self.config.noimage and not self.config.testdocker and not self.config.testpatch:
+        if not self.config.command == "benchmark":
             old_process.save_docker_image(repo.full_name, new_sha, new_build_cmd, old_build_cmd, new_test_cmd, old_test_cmd, results)
             
-        if total_improvement < self.config.min_p_value or overall_change_with_new_outperforms_old:
+        if total_improvement < self.config.testing.min_p_value or overall_change_with_new_outperforms_old:
             logging.info(f"[{repo.full_name}:{new_sha}] significantly improves execution time.")
             writer.write_improve(results)
 

@@ -5,8 +5,7 @@ from src.core.pipelines.pipeline import (
     RepositoryPipeline, 
     CommitPipeline, 
     CommitTesterPipeline,
-    DockerHubPipeline,
-    PatchPipeline
+    DockerHubPipeline
 )
 from src.config.config import Config
 
@@ -29,37 +28,40 @@ class Controller:
         logging.info("Starting controller...")
 
         try:
-            if self.config.collect and self.config.repos:
+            if self.config.command == "discover" and self.config.discover.repos > 0 and not self.config.discover.filter:
+                self.config.artifact.generate = False
                 self._collect()
             
-            if self.config.testcollect:
+            if self.config.command == "validate" and self.config.validate.repositories:
+                self.config.artifact.generate = False
                 self._testcollect()
 
-            if self.config.commits and self.config.filter:
+            if self.config.command == "discover" and self.config.discover.filter:
+                self.config.artifact.generate = True
                 self._commits()
 
-            if self.config.testcommits:
+            if self.config.command == "validate" and self.config.validate.commits:
+                self.config.artifact.generate = True
                 self._testcommits()
 
-            if self.config.genimages:
-                self._genimages()
-            
-            if self.config.pullimages:
-                self._pullimages()
-
-            if self.config.pushimages:
-                self._pushimages()
-
-            if self.config.testdocker:
-                self.config.genimages = False
+            if self.config.command == "benchmark" and self.config.benchmark.docker and not self.config.benchmark.diff:
+                self.config.artifact.generate = False
                 self._testdocker()
 
-            if self.config.patch:
-                self._patch()
-
-            if self.config.testpatch:
-                self.config.genimages = False
+            if self.config.command == "benchmark" and self.config.benchmark.docker and self.config.benchmark.diff:
+                self.config.artifact.generate = False
                 self._testpatch()
+
+            if self.config.command == "artifact" and self.config.artifact.pull:
+                self.config.artifact.generate = False
+                self._pullimages()
+
+            if self.config.command == "artifact" and self.config.artifact.push:
+                self.config.artifact.generate = False
+                self._pushimages()
+
+            if self.config.command == "artifact" and self.config.artifact.generate:
+                self._genimages()
 
         except Exception as e:
             logging.error(f"Controller encountered an error: {e}", exc_info=True)
@@ -74,11 +76,13 @@ class Controller:
         repos = pipeline.query_popular_repos()
         logging.info(f"Collected {len(repos)} repositories.")
 
+        """
         logging.info("Testing and validating GitHub repositories...")
         repo_pipeline = RepositoryPipeline(self.config)
         repo_pipeline.test_repos(repos)
         valid_count = len(repo_pipeline.valid_repos)
         logging.info(f"Found {valid_count} valid repositories.")
+        """
 
     def _testcollect(self) -> None:
         logging.info("Testing and validating GitHub repositories...")
@@ -98,7 +102,7 @@ class Controller:
         commit_pipeline = CommitPipeline(repo_ids, self.config)
         commit_pipeline.filter_all_commits()
         
-        if self.config.test:
+        if self.config.discover.test:
             filtered_commits = commit_pipeline.filtered_commits
             logging.info("Testing commits...")
             tester_pipeline = CommitTesterPipeline(self.config)
@@ -134,12 +138,6 @@ class Controller:
         tester_pipeline = CommitTesterPipeline(self.config)
         tester_pipeline.test_commit()
         logging.info("Testing docker images completed.")
-
-    def _patch(self) -> None:
-        logging.info("Patching commit...")
-        patch_pipeline = PatchPipeline(self.config)
-        patch_pipeline.patch()
-        logging.info("Commit patched.")
 
     def _testpatch(self) -> None:
         logging.info("Testing patched docker images...")

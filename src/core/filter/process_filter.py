@@ -51,7 +51,7 @@ class ProcessFilter:
             try:
                 process.set_enable_testing(enable_testing_path)
                 process.set_flags(flags)
-                process.docker_image = self.config.docker_image
+                process.docker_image = self.config.benchmark.docker
                 process.start_docker_image(container_name)
             
                 if not process.build():
@@ -143,31 +143,31 @@ class ProcessFilter:
         cpuset_cpus: str = ""
     ) -> Optional[CMakeProcess]:
         if not self.root:
-            logging.error(f"[{self.config.docker_image}] git project root: {self.root}")
+            logging.error(f"[{self.config.benchmark.docker}] git project root: {self.root}")
             return None
         
         analyzer = CMakeAnalyzer(self.root)
         process = CMakeProcess(self.config, self.root, None, [], analyzer, "")
         
-        process.docker_image = self.config.docker_image
+        process.docker_image = self.config.benchmark.docker
         process.set_docker(container_name, startup)
         process.docker.start_docker_container(container_name, cpuset_cpus)
         process.container = process.docker.container
         if not process.get_commands_in_docker(startup):
-            logging.error(f"[{self.config.docker_image}] {msg} copying commands from the docker image failed")
+            logging.error(f"[{self.config.benchmark.docker}] {msg} copying commands from the docker image failed")
             return None
         
-        if startup and self.config.diff and not process.diff():
-            logging.error(f"[{self.config.docker_image}] diff application to old (original) commit failed")
-            process.docker.stop_container(self.config.docker_image)
+        if startup and self.config.benchmark.diff and not process.diff():
+            logging.error(f"[{self.config.benchmark.docker}] diff application to old (original) commit failed")
+            process.docker.stop_container(self.config.benchmark.docker)
             return None
         
-        if self.config.diff and not process.build_in_docker():
-            logging.error(f"[{self.config.docker_image}] {msg} commit building failed")
-            process.docker.stop_container(self.config.docker_image)
+        if self.config.benchmark.diff and not process.build_in_docker():
+            logging.error(f"[{self.config.benchmark.docker}] {msg} commit building failed")
+            process.docker.stop_container(self.config.benchmark.docker)
             return None
 
-        logging.info(f"[{self.config.docker_image}] {msg} docker commit setup successful.")
+        logging.info(f"[{self.config.benchmark.docker}] {msg} docker commit setup successful.")
         return process
 
         
@@ -188,13 +188,13 @@ class ProcessFilter:
         process.set_flags(flags)
 
         #if self.config.testdocker or self.config.testpatch:
-        #    process.docker_image = self.config.docker_image
+        #    process.docker_image = self.config.benchmark.docker
         #    process.set_docker(container_name, startup)
         #    process.docker.start_docker_container(container_name, cpuset_cpus)
         #    process.container = process.docker.container
         #else: # self.config.testdocker and not self.config.testpatch: 
 
-        process.docker_image = self.config.docker_image
+        process.docker_image = self.config.benchmark.docker
         process.start_docker_image(container_name, startup, cpuset_cpus)
 
         #if startup and self.config.diff and not process.diff():

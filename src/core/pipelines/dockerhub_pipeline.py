@@ -6,7 +6,7 @@ from src.utils.image_handling import image_exists, image
 class DockerHubPipeline():
     def __init__(self, config: Config):
         self.config = config
-        self.commit = CommitHandler(self.config.input_file or self.config.storage_paths['commits'], self.config.storage_paths['clones'])
+        self.commit = CommitHandler(self.config.input or self.config.storage_paths['commits'], self.config.storage_paths['clones'])
 
     def push(self) -> None:
         if self.config.input:
@@ -16,12 +16,15 @@ class DockerHubPipeline():
             logging.warning(f"Invalid input: {self.config.input}")
     
     def _push_commits(self, commits: list[tuple[str, str, str]]) -> None:
+        if not self.config.env:
+            return None
+        
         for i, (repo_id, new_sha, old_sha) in enumerate(commits):
             local_image = image(repo_id, new_sha)
-            if not self.config.dockerhub_force and local_image in self.config.dockerhub_containers:
+            if local_image in self.config.dockerhub_containers:
                 continue
-            remote_image = f"{self.config.dockerhub_user}/{self.config.dockerhub_repo}:{local_image}"
-            if image_exists(repo_id, new_sha) and (not image_exists(other=remote_image) or self.config.dockerhub_force):
+            remote_image = f"{self.config.env.dockerhub_user}/{self.config.env.dockerhub_repo}:{local_image}"
+            if image_exists(repo_id, new_sha) and not image_exists(other=remote_image):
                 logging.info(f"Tagging {local_image} -> {remote_image}")
                 subprocess.run(["docker", "tag", local_image, remote_image], check=True)
                 logging.info(f"Pushing {remote_image} to Dockerhub")
@@ -35,9 +38,12 @@ class DockerHubPipeline():
             logging.warning(f"Invalid input: {self.config.input}")
 
     def _pull_commits(self, commits: list[tuple[str, str, str]]) -> None:
+        if not self.config.env:
+            return None
+        
         for i, (repo_id, new_sha, old_sha) in enumerate(commits):
             local_image = image(repo_id, new_sha)
-            remote_image = f"{self.config.dockerhub_user}/{self.config.dockerhub_repo}:{local_image}"
+            remote_image = f"{self.config.env.dockerhub_user}/{self.config.env.dockerhub_repo}:{local_image}"
             logging.info(f"Pulling {remote_image} from Dockerhub")
             subprocess.run(["docker", "pull", remote_image], check=True)
             subprocess.run(["docker", "tag", remote_image, local_image], check=True)

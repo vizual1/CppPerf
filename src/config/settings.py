@@ -6,7 +6,6 @@ from pathlib import Path
 @dataclass
 class LLMSettings:
     """LLM-related configuration."""
-    api_key: str = field(default_factory=lambda: os.getenv('LLM_API_KEY', ''))
     dependency_resolver_enabled: bool = True
     base: bool = True
     base_url: str = "https://openrouter.ai/api/v1"
@@ -34,13 +33,14 @@ class TestingSettings:
     no_list_testing: bool = True # False forces the commits to have test frameworks that allows list testing
     warmup: int = 1
     commit_test_times: int = 30
+    max_test_time: int = 1800
     docker_test_dir: str = "/test_workspace"
 
-@dataclass
-class GitHubSettings:
-    """GitHub API configuration."""
-    access_token: str = field(default_factory=lambda: os.getenv('GITHUB_ACCESS_TOKEN', ''))
-    
+    min_exec_time_improvement: float = 0.05
+    min_p_value: float = 0.05
+    overall_decline_limit: float = -0.01
+
+
 @dataclass
 class ResourceSettings:
     """Docker resource limits for --testcommits, --testdocker, --testpatch"""
@@ -52,14 +52,3 @@ class ResourceSettings:
     cpu_period: int = 100000
     jobs: int = 1 # running cmake build with -j = jobs
     max_parallel_jobs: int = 1 # tests multiple test commits at the same time
-    
-@dataclass
-class ResourceSettingsCrawl(ResourceSettings):
-    """Docker resource limits for --testcollect"""
-    cpuset_cpus: str = '1-4'
-    cpus_per_job: int = 4
-    mem_limit: str = '32g'
-    memswap_limit: str = '32g'
-    cpu_quota: int = 400000
-    cpu_period: int = 100000
-    jobs: int = 4

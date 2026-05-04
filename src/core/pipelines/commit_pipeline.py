@@ -1,4 +1,4 @@
-import logging, ast
+import logging
 from tqdm import tqdm
 from src.config.config import Config
 from src.utils.writer import Writer
@@ -19,16 +19,6 @@ class CommitPipeline:
         self.filtered_commits: list[tuple[str, Commit]] = []
 
     def filter_all_commits(self):
-        if self.config.sha and self.config.repo_id:
-            repo = self.config.git_client.get_repo(self.config.repo_id)
-            try:
-                self.commits = [repo.get_commit(sha=self.config.sha)]
-            except Exception as e:
-                logging.exception(f"[{repo.full_name}] Error fetching commits: {e}")
-                self.commits = []
-            self.filter_commits_from_repo(repo)
-            return
-        
         for repo_id in self.repo_ids:
             repo = self.config.git_client.get_repo(repo_id)
 
@@ -39,6 +29,8 @@ class CommitPipeline:
             except Exception as e:
                 logging.exception(f"[{repo.full_name}] Error fetching commits: {e}")
                 self.commits = []
+            limit = "all" if self.config.discover.limit == -1 else self.config.discover.limit
+            logging.info(f"Filtering {limit} commits in {repo.full_name}")
             self.filter_commits_from_repo(repo)
 
     def filter_commits_from_repo(self, repo: Repository) -> None:
@@ -48,18 +40,18 @@ class CommitPipeline:
         
         stats = CommitStats()
         for commit in tqdm(self.commits, desc=f"{repo.full_name} commits", position=1, leave=False, mininterval=5):
+            if self.config.discover.limit != -1 and len(self.filtered_commits) >= self.config.discover.limit:
+                break
+
             stats.num_commits += 1
             perf_improv_filter = CommitFilter(repo, commit, self.config)
             if not perf_improv_filter.accept():
                 continue
             
             self.filtered_commits.append((repo.full_name, commit))
-            writer = Writer(repo.full_name, self.config.output_file or self.config.storage_paths['commits'])
+            writer = Writer(repo.full_name, self.config.output or self.config.storage_paths['commits'])
             stats.perf_commits += 1
             stats += writer.write_pr_commit(repo, commit, perf_improv_filter.is_issue)
-
-            if self.config.limit != -1 and len(self.filtered_commits) >= self.config.limit:
-                break
 
         self._rewrite_commits()
         stats.write_final_log()
@@ -71,7 +63,7 @@ class CommitPipeline:
         'owner/repo | patched_sha | original_sha'
         """
         commits: dict[str, list[str]] = {}
-        path = Path(self.config.output_file or self.config.storage_paths['commits'])
+        path = Path(self.config.output or self.config.storage_paths['commits'])
         with open(path, "r") as f:
             for line_no, line in enumerate(f, start=1):
                 line = line.strip()
@@ -98,7 +90,7 @@ class CommitPipeline:
     
     def _rewrite_commits(self) -> None:
         commits = self._organize_commits()
-        path = Path(self.config.output_file or self.config.storage_paths['commits'])
+        path = Path(self.config.output or self.config.storage_paths['commits'])
         with open(path, "w") as f:
             for line in commits:
                 f.write(line + "\n")
