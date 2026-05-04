@@ -183,7 +183,8 @@ class TestAnalyzer:
     def create_test_log(self, commit: Commit, repo: Repository, old_sha: str, new_sha: str,
                         old_full_times: list[float], new_full_times: list[float],
                         new_build_cmd: list[str], old_build_cmd: list[str], 
-                        new_test_cmd: list[str], old_test_cmd: list[str],) -> dict:
+                        new_test_cmd: list[str], old_test_cmd: list[str],
+                        build_success: bool, test_success: bool, test_runtime: float) -> dict:
         
         gh_refs: list[tuple[str, int, str, str, Issue]] = []
         messages: list[str] = []
@@ -378,8 +379,9 @@ class TestAnalyzer:
                 "config_log_path": "/logs/config.log",
                 "build_log_path": "/logs/build.log",
                 "test_log_path": "/logs/test.log",
-                "build_success": True,
-                "test_success": True
+                "build_success": build_success,
+                "test_success": test_success,
+                "test_runtime": test_runtime
             },
             "raw_timing_data": {
                 "warmup_runs": self.config.testing.warmup,

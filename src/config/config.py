@@ -37,6 +37,12 @@ class ArtifactConfig:
     push: bool = False
 
 @dataclass
+class InspectConfig:
+    repo: str = ""
+    sha: str = ""
+    id: str = ""
+
+@dataclass
 class Config:
     """
     GitHub Repository Collection, Structural, Build and Test Validation
@@ -50,6 +56,7 @@ class Config:
     validate: ValidateConfig = field(default_factory=ValidateConfig)
     benchmark: BenchmarkConfig = field(default_factory=BenchmarkConfig)
     artifact: ArtifactConfig = field(default_factory=ArtifactConfig)
+    inspect: InspectConfig = field(default_factory=InspectConfig)
     
     """
     Configurations Settings

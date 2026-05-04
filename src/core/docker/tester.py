@@ -1,4 +1,4 @@
-import logging, os, stat, shutil, random, json
+import logging, os, stat, shutil, random, json, time
 from tqdm import tqdm
 from src.core.filter.process_filter import ProcessFilter
 from src.cmake.process import CMakeProcess
@@ -17,6 +17,9 @@ from src.utils.image_handling import image_exists, image
 class DockerTester:
     def __init__(self, config: Config):
         self.config = config
+        self.test_success = True
+        self.test_runtime = 0
+        self.build_success = True
 
     def run_commit_pair(
         self,
@@ -38,7 +41,7 @@ class DockerTester:
             if self.config.command == "artifact" and self.config.artifact.generate:
                 self._gen_image_only(repo, new_process, old_process, new_sha)
             else:
-                self._analyzer_results(repo, new_process, old_process, new_sha, old_sha)
+                self._analyzer_results(repo, new_process, old_process, new_sha, old_sha, self.build_success, self.test_success, self.test_runtime)
                         
 
     @contextmanager
@@ -58,14 +61,13 @@ class DockerTester:
             new_process, old_process = self._setup_commits(repo, new_path, old_path, new_sha, old_sha, cpuset_cpus)
             # artifact --generate just generates the docker image from an existing json results file
             if (not (self.config.command == "artifact" and self.config.artifact.generate) or self.config.discover.test or self.config.command == "validate"):
-                self._run_tests(repo, new_process, old_process, new_sha)
+                try:
+                    self._run_tests(repo, new_process, old_process, new_sha)
+                except TestFailed as e:
+                    logging.error("Test failed early, stopping the test loops.")
+                    logging.error(str(e))
             
             yield new_process, old_process
-
-        except TestFailed as e:
-            logging.error("Test failed early, stopping the test loops.")
-            logging.error(str(e))
-            yield None, None
 
         except UndefinedStructureFilter as e:
             logging.error(str(e))
@@ -98,13 +100,13 @@ class DockerTester:
         if self.config.benchmark.docker and image_exists(other=self.config.benchmark.docker):
             container_name = self.config.benchmark.docker
 
-            new_process = new_pf.docker_commit_setup_and_build("New", container_name=container_name, startup=True, cpuset_cpus=cpuset_cpus)
-            
+            new_process, build_success = new_pf.docker_commit_setup_and_build("New", container_name=container_name, startup=True, cpuset_cpus=cpuset_cpus)
+            self.build_success = self.build_success and build_success
             if not new_process:
                 raise UndefinedStructureFilter("New commit CMakeProcess is None")
             
-            old_process = old_pf.docker_commit_setup_and_build("Old", container_name=container_name, startup=False)
-
+            old_process, build_success = old_pf.docker_commit_setup_and_build("Old", container_name=container_name, startup=False)
+            self.build_success = self.build_success and build_success
             if not old_process:
                 raise UndefinedStructureFilter("Old commit CMakeProcess is None")
             
@@ -114,13 +116,13 @@ class DockerTester:
             local_image = image(repo.full_name, new_sha)
             container_name = local_image
 
-            new_process = new_pf.commit_setup_and_build("New", repo, new_sha, container_name=container_name, startup=True, cpuset_cpus=cpuset_cpus)
-            
+            new_process, build_success = new_pf.commit_setup_and_build("New", repo, new_sha, container_name=container_name, startup=True, cpuset_cpus=cpuset_cpus)
+            self.build_success = self.build_success and build_success
             if not new_process:
                 raise UndefinedStructureFilter("New commit CMakeProcess is None")
             
-            old_process = old_pf.commit_setup_and_build("Old", repo, old_sha, container_name=container_name, startup=False)
-            
+            old_process, build_success = old_pf.commit_setup_and_build("Old", repo, old_sha, container_name=container_name, startup=False)
+            self.build_success = self.build_success and build_success
             if not old_process:
                 raise UndefinedStructureFilter("Old commit CMakeProcess is None")
             
@@ -141,7 +143,10 @@ class DockerTester:
         assert len(new_test_cmd) == len(old_test_cmd)
         has_test_framework = bool(new_process.framework)
 
+        start_time = time.time()
         self._test(repo, new_process, old_process, has_test_framework, new_test_cmd, old_test_cmd, new_sha)
+        end_time = time.time()
+        self.test_runtime = end_time - start_time
 
     def _test(self, repo: Repository, new_process: CMakeProcess, old_process: CMakeProcess, has_test_framework: bool, new_test_cmd: list[list[str]], old_test_cmd: list[list[str]], new_sha: str) -> None: 
         warmup = self.config.testing.warmup
@@ -161,12 +166,12 @@ class DockerTester:
                         continue
                     if not process.test(cmd, has_test_framework):
                         logging.error(f"[{msg}] {label} test failed")
-                        #process.docker.stop_container(repo.full_name if repo else self.config.docker_image)
+                        self.test_success = False
                         raise TestFailed(f"Test run '{cmd}' failed")
                     logging.debug(f"[{msg}] {label} build and test successful")
+                    
     
-    
-    def _analyzer_results(self, repo: Repository, new_process: CMakeProcess, old_process: CMakeProcess, new_sha: str, old_sha: str) -> None:
+    def _analyzer_results(self, repo: Repository, new_process: CMakeProcess, old_process: CMakeProcess, new_sha: str, old_sha: str, build_success: bool, test_success: bool, test_runtime: float) -> None:
         new_cmd_times = new_process.test_time
         old_cmd_times = old_process.test_time
 
@@ -226,6 +231,7 @@ class DockerTester:
         results = test.create_test_log(
             commit, repo, old_sha, new_sha,
             old_times, new_times, new_build_cmd, old_build_cmd, new_test_cmd, old_test_cmd,
+            build_success, test_success, test_runtime
         )
         logging.info(f"Results: {results['performance_analysis']}")
         writer = Writer(repo.full_name, self.config.output or self.config.storage_paths["performance"])

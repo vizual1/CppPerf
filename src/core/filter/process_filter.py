@@ -89,27 +89,27 @@ class ProcessFilter:
         container_name: str, 
         startup: bool = True,
         cpuset_cpus: str = "",
-    ) -> Optional[CMakeProcess]:
+    ) -> tuple[Optional[CMakeProcess], bool]:
         
         if not self.root:
             logging.error(f"[{repo.full_name}] git project root: {self.root}")
-            return None
+            return None, False
 
         if not GitHandler().clone_repo(repo.full_name, self.root, sha=sha):
             logging.error(f"[{repo.full_name}] git cloning failed")
-            return None
+            return None, False
         
         structure = StructureFilter(self.config, self.root)
         logging.info(f"[{repo.full_name}:{sha}] Testing...")
         if not structure.is_valid_commit(repo, self.root, sha):
             logging.error(f"[{repo.full_name}:{sha}] commit cmake and ctest failed")
-            return None
+            return None, False
 
         analyzer = structure.analyzer
         process = CMakeProcess(self.config, self.root, None, [], analyzer, "")
         if not process:
             logging.error(f"[{repo.full_name}:{sha}] CMakeProcess couldn't be found")
-            return None
+            return None, False
         
         # parses all the possible testing flags defined under src/config/constants.py in VALID_TEST_FLAGS
         flags = FlagFilter(self.config.valid_test_flags, analyzer.extract_build_testing_flag()).get_valid_flags()
@@ -119,7 +119,7 @@ class ProcessFilter:
         sorted_testing_path = self.sort_testing_path(analyzer.get_enable_testing_path())
         if len(sorted_testing_path) == 0:
             logging.error(f"[{repo.full_name}:{sha}] path to enable_testing() was not found in {self.root}: {sorted_testing_path}")
-            return None
+            return None, False
         
         if len(sorted_testing_path) > 1:
             logging.warning(f"[{repo.full_name}:{sha}] multiple paths to enable_testing() was found in {self.root}. For testing: {sorted_testing_path[0]}")
@@ -133,7 +133,7 @@ class ProcessFilter:
             return self.build_collect_test(repo, sha, process, enable_testing_path, flags, container_name, startup, cpuset_cpus, msg)
         except Exception as e:
             logging.error(f"[{repo.full_name}:{sha}] Unexpected error during process run: {e}")
-            return None
+            return None, False
         
     def docker_commit_setup_and_build(
         self, 
@@ -141,10 +141,10 @@ class ProcessFilter:
         container_name: str, 
         startup: bool = True,
         cpuset_cpus: str = ""
-    ) -> Optional[CMakeProcess]:
+    ) -> tuple[Optional[CMakeProcess], bool]:
         if not self.root:
             logging.error(f"[{self.config.benchmark.docker}] git project root: {self.root}")
-            return None
+            return None, False
         
         analyzer = CMakeAnalyzer(self.root)
         process = CMakeProcess(self.config, self.root, None, [], analyzer, "")
@@ -155,20 +155,20 @@ class ProcessFilter:
         process.container = process.docker.container
         if not process.get_commands_in_docker(startup):
             logging.error(f"[{self.config.benchmark.docker}] {msg} copying commands from the docker image failed")
-            return None
+            return None, False
         
         if startup and self.config.benchmark.diff and not process.diff():
             logging.error(f"[{self.config.benchmark.docker}] diff application to old (original) commit failed")
             process.docker.stop_container(self.config.benchmark.docker)
-            return None
+            return None, False
         
         if self.config.benchmark.diff and not process.build_in_docker():
             logging.error(f"[{self.config.benchmark.docker}] {msg} commit building failed")
             process.docker.stop_container(self.config.benchmark.docker)
-            return None
+            return None, False
 
         logging.info(f"[{self.config.benchmark.docker}] {msg} docker commit setup successful.")
-        return process
+        return process, True
 
         
     def build_collect_test(
@@ -182,7 +182,7 @@ class ProcessFilter:
         startup: bool,
         cpuset_cpus: str,
         msg: str
-    ) -> Optional[CMakeProcess]:
+    ) -> tuple[Optional[CMakeProcess], bool]:
         
         process.set_enable_testing(enable_testing_path)
         process.set_flags(flags)
@@ -205,15 +205,15 @@ class ProcessFilter:
         if not process.build():
             logging.error(f"[{repo.full_name}:{sha}] {msg} build failed")
             process.docker.stop_container(repo.full_name)
-            return None
+            return None, False
         
         if not process.collect_tests():
             logging.error(f"[{repo.full_name}:{sha}] {msg} generating test commands failed")
             process.docker.stop_container(repo.full_name)
-            return None
+            return None, False
         
         logging.info(f"[{repo.full_name}:{sha}] {msg} build successful")
-        return process
+        return process, True
 
     def _sort_key(self, y: Path) -> tuple[int, int]:
         valid_test_dirs = [Path(x) for x in self.config.valid_test_dirs]

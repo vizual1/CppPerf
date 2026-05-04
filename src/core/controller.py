@@ -8,6 +8,7 @@ from src.core.pipelines.pipeline import (
     DockerHubPipeline
 )
 from src.config.config import Config
+from src.core.inspect import inspect_result
 
 class Controller:
     """
@@ -28,6 +29,9 @@ class Controller:
         logging.info("Starting controller...")
 
         try:
+            if self.config.command == "inspect":
+                self._inspect()
+
             if self.config.command == "discover" and self.config.discover.repos > 0 and not self.config.discover.filter:
                 self.config.artifact.generate = False
                 self._collect()
@@ -144,3 +148,10 @@ class Controller:
         image_pipeline = CommitTesterPipeline(self.config)
         image_pipeline.test_commit()
         logging.info("Testing patched docker images completed.")
+
+    def _inspect(self) -> None:
+        if self.config.inspect.id:
+            owner, repo, sha = self.config.inspect.id.split("_")
+            inspect_result(f"{owner}/{repo}", sha)
+        elif self.config.inspect.repo and self.config.inspect.sha:
+            inspect_result(self.config.inspect.repo, self.config.inspect.sha)

@@ -30,6 +30,12 @@ def setup_parser() -> argparse.ArgumentParser:
     artifact = subparsers.add_parser("artifact")
     add_input_args(artifact)
     add_output_args(artifact)
+    inspect = subparsers.add_parser("inspect")
+    add_input_args(inspect)
+    add_output_args(inspect)
+    inspect.add_argument("--repo", type=str, help="Inspect owner/repo.")
+    inspect.add_argument("--sha", type=str, help="SHA hash of patched commit.")
+    inspect.add_argument("--id", type=str, help="Inspect owner_repo_newsha")
 
     source_group = discover.add_argument_group("Source Options")
     source_group.add_argument("--repos", type=int, default=10, help="Limit number of mined repositories (default: 10)")
@@ -94,6 +100,13 @@ def create_config(args: argparse.Namespace) -> Config:
                 generate=args.generate,
                 pull=args.pull,
                 push=args.push,
+            )
+
+        elif args.command == "inspect":
+            cfg.inspect = InspectConfig(
+                repo=args.repo,
+                sha=args.sha,
+                id=args.id
             )
 
         return cfg

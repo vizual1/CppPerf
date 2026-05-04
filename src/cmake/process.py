@@ -54,6 +54,7 @@ class CMakeProcess:
         self.per_test_times: dict[str, dict[str, list[float]]] = {}
         self.framework: str = ""
         self.unit_tests_map: dict[str, dict[str, str]] = {}
+        self.stats: dict = {}
 
     def set_enable_testing(self, enable_testing_path: Path) -> None:
         self.root = self.root
@@ -639,8 +640,8 @@ class CMakeProcess:
             )
 
             # parse the times returned
-            stats = parse_ctest_output(stdout)
-            elapsed: float = stats['total_time_sec']
+            self.stats = parse_ctest_output(stdout)
+            elapsed: float = self.stats['total_time_sec']
 
             idx = self.test_time['parsed'].index(0.0)
             self.test_time['parsed'][idx] = elapsed
@@ -650,13 +651,13 @@ class CMakeProcess:
             self.ctest_output.append(stdout)
             self.per_test_times = parse_single_ctest_output(stdout, self.per_test_times)
 
-            if exit_code == 0 and stats['total'] > 0:
+            if exit_code == 0 and self.stats['total'] > 0:
                 logging.info(f"CTest passed for {self.test_path}")
                 logging.debug(f"Output:\n{stdout}")
-                logging.info(f"Tests run: {stats['total']}, Failures: {stats['failed']}, Skipped: {stats['skipped']}, Time elapsed: {elapsed or time} s")
+                logging.info(f"Tests run: {self.stats['total']}, Failures: {self.stats['failed']}, Skipped: {self.stats['skipped']}, Time elapsed: {elapsed or time} s")
             else:
                 logging.error(f"CTest failed for {self.test_path} (return code {exit_code}) with command {' '.join(command)}", exc_info=True)
-                logging.info(f"Tests run: {stats['total']}, Failures: {stats['failed']}, Skipped: {stats['skipped']}, Time elapsed: {elapsed or time} s")
+                logging.info(f"Tests run: {self.stats['total']}, Failures: {self.stats['failed']}, Skipped: {self.stats['skipped']}, Time elapsed: {elapsed or time} s")
                 if stdout: logging.error(f"Output (stdout):\n{stdout}", exc_info=True)
                 if stderr: logging.error(f"Error (stderr):\n{stderr}", exc_info=True)
                 return False
