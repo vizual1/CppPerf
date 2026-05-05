@@ -2,11 +2,13 @@ import json
 from pathlib import Path
 
 def inspect_result(repo: str, newsha: str, data_dir: str = "data/commits"):
-    repo_safe = repo.replace("/", "_")
-    filename = f"{repo_safe}_{newsha}.json"
-    path = Path(data_dir) / filename
+    path = Path(data_dir)
+    if not data_dir.endswith(".json"):
+        repo_safe = repo.replace("/", "_")
+        filename = f"{repo_safe}_{newsha}.json"
+        path = Path(data_dir) / filename
 
-    if not path.exists():
+    if not path.exists() and not path.is_file():
         raise FileNotFoundError(f"Result not found: {path}")
 
     with open(path, "r") as f:
@@ -45,7 +47,13 @@ def inspect_result(repo: str, newsha: str, data_dir: str = "data/commits"):
 
     print("\n---------------- TEST SUMMARY ----------------")
     print(f"Total tests: {tests['total_tests']}")
-    print(f"Regressions: {tests['significant_pair_regressions']}")
-    print(f"Improvements: {tests['significant_pair_improvements']}")
+    print(f"Significant Regressions: {tests['significant_pair_regressions']}")
+    print(f"Significant Improvements: {tests['significant_pair_improvements']}")
+    significant_tests = tests['significant_pair_improvements_tests']
+    print(f"Significant Tests:")
+    for f in significant_tests[:10]:
+        print(f"  - {f}")
+    if len(files) > 10:
+        print("  ...")
 
     print("\n======================================================\n")

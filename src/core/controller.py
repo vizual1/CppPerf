@@ -150,8 +150,11 @@ class Controller:
         logging.info("Testing patched docker images completed.")
 
     def _inspect(self) -> None:
+        data_dir = self.config.input or "data/commits"
         if self.config.inspect.id:
             owner, repo, sha = self.config.inspect.id.split("_")
-            inspect_result(f"{owner}/{repo}", sha)
+            inspect_result(f"{owner}/{repo}", sha, data_dir)
         elif self.config.inspect.repo and self.config.inspect.sha:
-            inspect_result(self.config.inspect.repo, self.config.inspect.sha)
+            inspect_result(self.config.inspect.repo, self.config.inspect.sha, data_dir)
+        else:
+            inspect_result("", "", data_dir)

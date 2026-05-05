@@ -60,12 +60,12 @@ python3 main.py discover --repos=10 --stars=1000
 python3 main.py discover --repos=10 --stars=1000 --test
 
 # Structurally validate, and build and test (most recent commit)
-python3 main.py validate --repositories --input=data/collect.txt
+python3 main.py validate --repositories --input=data/collect.csv
 ```
 
 *Outputs*
-- ```data/collect.txt``` - Validated collection results (owner/repo per line)
-- ```data/fail.txt``` - Repositories that failed validation (owner/repo per line)
+- ```data/collect.csv``` - Validated collection results (owner/repo per line)
+- ```data/fail.csv``` - Repositories that failed validation (owner/repo per line)
 
 2. **Collecting and Testing Commits**
 LLM filtering currently supports Ollama, OpenAI, and OpenRouter APIs. The default model configuration is defined in ```config/config.yaml```. 
@@ -73,17 +73,17 @@ LLM filtering currently supports Ollama, OpenAI, and OpenRouter APIs. The defaul
 Filter commits from collected repositories:
 ```bash
 # Collect and filter commits with LLM
-python3 main.py discover --filter=llm --input=data/collect.txt
+python3 main.py discover --filter=llm --input=data/collect.csv
 
 # Collect and filter commits, then build and test commits
-python3 main.py discover --test --filter=llm --input=data/collect.txt
+python3 main.py discover --test --filter=llm --input=data/collect.csv
 
 # Build and test commits
-python3 main.py validate --commits --input=data/filtered_commits.txt
+python3 main.py validate --commits --input=data/filtered_commits.csv
 ```
 
 *Outputs*:
-- ```data/filtered_commits.txt``` - filtered commits (```owner/repo | newsha | oldsha``` per line)
+- ```data/filtered_commits.csv``` - filtered commits (```owner/repo,newsha,oldsha``` per line)
 - ```data/commits/owner_repo_newsha.json``` - multiple JSON files of built and tests commits, containing:
     - Build and test commands executed
     - Execution times
@@ -92,13 +92,13 @@ python3 main.py validate --commits --input=data/filtered_commits.txt
 3. **Docker Operations**
 ```bash
 # Test a specific Docker image
-python3 main.py benchmark --docker=<owner_repo_newsha>
+python main.py benchmark --docker=<owner_repo_newsha>
 
 # Generate Docker images without testing of collected commits from a folder of JSON files
-python3 main.py artifact --generate --input=data/dataset/
+python main.py artifact --generate --input=data/dataset/
 
 # Test a patch from a diff file (the diff file is applied to /test_workspace/workspace/old)
-python3 main.py benchmark --docker=<owner_repo_newsha> --diff=/path/to/diff.patch
+python main.py benchmark --docker=<owner_repo_newsha> --diff=/path/to/diff.patch
 ```
 
 *Outputs*:
@@ -107,18 +107,32 @@ python3 main.py benchmark --docker=<owner_repo_newsha> --diff=/path/to/diff.patc
     - Execution times
     - Statistical analysis
 
+4. **Inspect Results**
+```bash
+# inspect a generated result json file
+python main.py inspect --input=path/to/json_file
+
+# result json file needs to be in data/commits/
+python main.py inspect --id=<owner_repo_newsha>
+python main.py inspect --repo=<owner_repo> --sha=<newsha>
+```
+
 ---
 
 ## Artifacts and Dataset
 
 Dataset Docker images:
 ```bash
-export DOCKER_HUB_USER=tommyho1999
-export DOCKER_HUB_REPO=opt-repo-cpp
+# set in .env
+# DOCKER_HUB_USER=tommyho1999
+# DOCKER_HUB_REPO=opt-repo-cpp
 
 # Pulls Docker images from Dockerhub of collected commits from a folder of JSON files
 # WARNING: This command downloads the entire dataset of Docker images (347)
-python3 main.py artifact --pull --input=data/dataset/
+python main.py artifact --pull --input=data/dataset/
+
+# or run for a single Docker image
+python main.py artifact --pull --input=data/dataset/<owner_repo_newsha>.json 
 ```
 Note: Prebuilt Docker images are available on
 [DockerHub](https://hub.docker.com/repository/docker/tommyho1999/opt-repo-cpp)
