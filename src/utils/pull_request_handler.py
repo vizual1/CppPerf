@@ -46,19 +46,19 @@ def get_pr_for_commit(repo, repo_full, sha):
     commit_to_pr_cache[key] = pr_number
     return pr_number
 
-def get_pr_chain_msg(repo: Repository, commit: Commit, is_issue: bool):
+def get_pr_chain_msg(repo: Repository, commit: Commit, is_issue: bool) -> tuple[str, str, str]:
     new_sha = commit.sha
     old_sha = commit.parents[0].sha if commit.parents else "None"
     if not is_issue:
-        return f"{repo.full_name} | {new_sha} | {old_sha}\n"
+        return repo.full_name, new_sha, old_sha
     pr_number = get_pr_for_commit(repo, repo.full_name, new_sha)
     if pr_number is None:
         # Not a PR commit, emit as usual
-        return f"{repo.full_name} | {new_sha} | {old_sha}\n"
+        return repo.full_name, new_sha, old_sha
     
     pr = repo.get_pull(pr_number)
     comparison = repo.compare(pr.base.sha, pr.head.sha)
     original_commit = comparison.merge_base_commit.sha
     patched_commit = pr.head.sha
 
-    return f"{repo.full_name} | {patched_commit} | {original_commit}\n"
+    return repo.full_name, patched_commit, original_commit

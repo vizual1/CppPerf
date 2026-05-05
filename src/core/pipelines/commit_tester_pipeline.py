@@ -34,7 +34,6 @@ class CommitTesterPipeline:
             repo_id = f"{owner}/{name}"
             old_sha = self.config.git_client.get_repo(repo_id).get_commit(new_sha).parents[0].sha
             commits = [(repo_id, new_sha, old_sha)]
-            # commits = [("", "", "")]
         else:
             commits = self.commit.get_commits(commits_list)
         if len(commits) > 0:

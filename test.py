@@ -1,4 +1,4 @@
-import subprocess, sys
+import subprocess, sys, csv
 from pathlib import Path
 
 CWD = Path(__file__).parent
@@ -8,44 +8,48 @@ def test_collect():
     cmd = [PYTHON_EXEC, "main.py", "discover", "--repos=3", "--stars=1000"]
     subprocess.run(cmd, check=True, cwd=CWD)
 
-    collect = Path("data/collect.txt")
+    collect = Path("data/collect.csv")
     with open(collect, 'r') as f:
-        lines1 = f.readlines()
-    assert len(lines1) == 3
+        reader = csv.DictReader(f)
+        repos = [row["repo"].strip() for row in reader if row.get("repo")]
+    assert len(repos) == 3
     print("TEST (discover repository) SUCCESSFUL")
     collect.unlink(True)
-    discover = Path("data/discover.txt")
+    
+    discover = Path("data/discovered.csv")
     with open(discover, 'r') as f:
-        lines1 = f.readlines()
-    assert len(lines1) >= 3
+        reader = csv.DictReader(f)
+        repos = [row["repo"].strip() for row in reader if row.get("repo")]
+    assert len(repos) >= 3
     discover.unlink(True)
 
-    cmd = [PYTHON_EXEC, "main.py", "validate", "--repositories", "--input=data/test/test_repositories.txt"]
+    cmd = [PYTHON_EXEC, "main.py", "validate", "--repositories", "--input=data/test/test_repositories.csv"]
     subprocess.run(cmd, check=True, cwd=CWD)
 
-    testcollect = Path("data/collect.txt")
+    testcollect = Path("data/collect.csv")
     if testcollect.exists():
         with open(testcollect, 'r') as f:
-            lines = f.readlines()
+            reader = csv.DictReader(f)
+            repos = [row["repo"].strip() for row in reader if row.get("repo")]
     else:
-        lines = []
-    assert len(lines) >= 1
+        repos = []
+    assert len(repos) >= 1
     print("TEST (validate repository) SUCCESSFUL")
     testcollect.unlink(True)
 
 def test_commits():
-    cmd = [PYTHON_EXEC, "main.py", "discover", "--filter=simple", "--input=data/test/test_repositories.txt", "--limit=3"]
+    cmd = [PYTHON_EXEC, "main.py", "discover", "--filter=simple", "--input=data/test/test_repositories.csv", "--limit=3"]
     subprocess.run(cmd, check=True, cwd=CWD)
 
-    filtered_commits = Path("data/filtered_commits.txt")
+    filtered_commits = Path("data/filtered_commits.csv")
     assert filtered_commits.exists()
     print("TEST (discover commits) SUCCESSFUL")
     filtered_commits.unlink()
 
-    cmd = [PYTHON_EXEC, "main.py", "discover", "--test", "--filter=simple", "--input=data/test/test_repositories.txt", "--limit=3"]
+    cmd = [PYTHON_EXEC, "main.py", "discover", "--test", "--filter=simple", "--input=data/test/test_repositories.csv", "--limit=3"]
     subprocess.run(cmd, check=True, cwd=CWD)
 
-    filtered_commits = Path("data/filtered_commits.txt")
+    filtered_commits = Path("data/filtered_commits.csv")
     assert filtered_commits.exists()
     print("TEST (discover commits + tests) 1 SUCCESSFUL")
     filtered_commits.unlink()
@@ -57,7 +61,7 @@ def test_commits():
         file.unlink()
     print("TEST (discover commits + tests) 2 SUCCESSFUL")
 
-    cmd = [PYTHON_EXEC, "main.py", "validate", "--commits", "--input=data/test/test_commits.txt"]
+    cmd = [PYTHON_EXEC, "main.py", "validate", "--commits", "--input=data/test/test_commits.csv"]
     subprocess.run(cmd, check=True, cwd=CWD)
 
     json_files = list(Path("data/commits/").glob("*.json"))

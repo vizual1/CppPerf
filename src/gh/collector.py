@@ -1,4 +1,4 @@
-import logging, time
+import logging, time, csv
 from tqdm import tqdm
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -147,79 +147,75 @@ class RepositoryCollector:
         except Exception as e:
             logging.exception(f"[{repo_id}] Error processing repository: {e}")
         return False
-    
+
     def _get_repo_ids(self, path: str) -> list[str]:
-        """
-        Extract repository IDs (owner/repo) from file or URL.
-        
-        Supports multiple formats:
-        - GitHub URLs: https://github.com/owner/repo
-        - Direct format: owner/repo
-        - CSV format: owner/repo,other,data
-        - Pipe-delimited tables
-        
-        Args:
-            path: File path or URL to parse
-            
-        Returns:
-            List of repository IDs in 'owner/repo' format
-        """
         repo_ids: list[str] = []
 
         try:
             file_path = Path(path)
+
             if not file_path.exists():
                 logging.warning(f"Input file not found: {path}")
                 return repo_ids
-            
-            if not file_path.is_file:
+
+            if not file_path.is_file():
                 logging.warning(f"Input path is not a file: {path}")
                 return repo_ids
-            
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
 
-            for i, line in enumerate(lines, 1):
-                line = line.strip()
+            with open(file_path, "r", encoding="utf-8", newline="") as f:
+                reader = csv.DictReader(f)
 
-                if not line:
-                    continue
+                if not reader.fieldnames:
+                    raise ValueError(f"CSV file has no header: {path}")
 
-                try:
-                    repo_id = self._parse_repo_line(line, path)
-                    if repo_id:
-                        repo_ids.append(repo_id)
-                except Exception as e:
-                    logging.warning(f"Error parsing line {i} in {path}: {e}")
-                    continue
+                # Prefer explicit schema
+                if "repo" not in reader.fieldnames:
+                    raise ValueError(f"CSV must contain a 'repo' column. Found: {reader.fieldnames}")
 
-            logging.info(f"Loaded {len(repo_ids)} repository URLs from {path}")
+                for i, row in enumerate(reader, 2):  # header = line 1
+                    try:
+                        raw = (row.get("repo") or "").strip()
+                        if not raw:
+                            continue
+
+                        repo_id = self._normalize_repo(raw)
+                        if repo_id:
+                            repo_ids.append(repo_id)
+
+                    except Exception as e:
+                        logging.warning(f"Error parsing row {i} in {path}: {e}")
+                        continue
+
+            logging.info(f"Loaded {len(repo_ids)} repository IDs from {path}")
 
         except (OSError, IOError) as e:
             logging.error(f"Failed to read repo list from {path}: {e}", exc_info=True)
 
         return repo_ids
     
-    def _parse_repo_line(self, line: str, filepath: str) -> str:
+    def _normalize_repo(self, raw: str) -> str:
         """
-        Parse a single line to extract repository ID.
-        
-        Args:
-            line: Line to parse
-            filepath: Source file path (used for pipe-delimited format)
-            
-        Returns:
-            Repository ID in 'owner/repo' format, or None if invalid
+        Normalize a repository reference into 'owner/repo'.
+        Accepts:
+        - owner/repo
+        - https://github.com/owner/repo
         """
-        if '|' in line:
-            parts = line.split('|')
-            if len(parts) >= 1 and '/' in parts[0]:
-                return parts[0]
-            return ""
-        
-        # CSV format
-        if ',' in line:
-            repo_url = line.split(',')[0].strip()
-            return repo_url.removeprefix("https://github.com/").strip()
 
-        return line.removeprefix("https://github.com/").strip()
+        raw = raw.strip()
+
+        if raw.startswith("https://github.com/"):
+            raw = raw.removeprefix("https://github.com/")
+
+        # Remove trailing slashes or .git
+        raw = raw.rstrip("/")
+        if raw.endswith(".git"):
+            raw = raw[:-4]
+
+        if "/" not in raw:
+            raise ValueError(f"Invalid repo format: '{raw}'")
+
+        owner, repo = raw.split("/", 1)
+        if not owner or not repo:
+            raise ValueError(f"Invalid repo format: '{raw}'")
+
+        return f"{owner}/{repo}"

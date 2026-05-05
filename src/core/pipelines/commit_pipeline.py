@@ -6,7 +6,6 @@ from src.core.filter.commit_filter import CommitFilter
 from src.utils.stats import CommitStats
 from github.Repository import Repository
 from github.Commit import Commit
-from pathlib import Path
 
 class CommitPipeline:
     """
@@ -53,44 +52,4 @@ class CommitPipeline:
             stats.perf_commits += 1
             stats += writer.write_pr_commit(repo, commit, perf_improv_filter.is_issue)
 
-        self._rewrite_commits()
         stats.write_final_log()
-
-
-    def _read_commits(self) -> list[str]:
-        """
-        Merges multiple 'owner/repo | patched_sha | original_sha' into 
-        'owner/repo | patched_sha | original_sha'
-        """
-        commits: dict[str, list[str]] = {}
-        path = Path(self.config.output or self.config.storage_paths['commits'])
-        with open(path, "r") as f:
-            for line_no, line in enumerate(f, start=1):
-                line = line.strip()
-                if not line:
-                    continue
-
-                parts = [p.strip() for p in line.split("|") if p.strip()]
-                if len(parts) <= 2:
-                    logging.warning(f"Malformed commit line at {path}:{line_no} -> {line}")
-                    continue
-                msg = f"{parts[0]} | {parts[1]} | {parts[2]}"
-                
-                commits.setdefault(msg, [])
-                    
-        #output = [f"{k} | {v}" for k, v in commits.items()]
-        output = [k for k, _ in commits.items()]
-        return output
-    
-    def _organize_commits(self) -> list[str]:
-        commits = self._read_commits()
-        commits = list(set(commits))
-        commits.sort(key=str.casefold)
-        return commits
-    
-    def _rewrite_commits(self) -> None:
-        commits = self._organize_commits()
-        path = Path(self.config.output or self.config.storage_paths['commits'])
-        with open(path, "w") as f:
-            for line in commits:
-                f.write(line + "\n")

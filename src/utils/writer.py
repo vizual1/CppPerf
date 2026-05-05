@@ -1,4 +1,4 @@
-import logging, json, fcntl, os
+import logging, json, fcntl, os, csv
 from github.Repository import Repository
 from github.Commit import Commit
 from src.utils.stats import CommitStats
@@ -17,11 +17,12 @@ class Writer:
         self.output_path = output_path
         self.file: Optional[str] = None
 
-    def write_repo(self, m: list[str] = []) -> None:
-        msg = " | ".join([f"{self.owner}/{self.name}"] + m)
-        msg += f"\n"
+    def write_repo(self) -> None:
+        #msg = " | ".join([f"{self.owner}/{self.name}"])
+        #msg += f"\n"
         path = Path(self.output_path)
-        self._write(path, msg)
+        #self._write(path, msg)
+        self._write_csv(path, row=[f"{self.owner}/{self.name}"], header=["repo"])
 
     def write_commit(self, commit: Commit, filter: str) -> CommitStats:
         stats = CommitStats()
@@ -33,13 +34,14 @@ class Writer:
         stats.lines_added += total_add
         stats.lines_deleted += total_del
 
-        current_sha = commit.sha
-        parent_sha = commit.parents[0].sha if commit.parents else "None"
+        current_sha: str = commit.sha
+        parent_sha: str = commit.parents[0].sha if commit.parents else "None"
 
-        self.file = "filtered.txt"
-        msg = f"{self.repo_id} | {current_sha} | {parent_sha}\n" 
+        self.file = "filtered.csv"
+        #msg = f"{self.repo_id} | {current_sha} | {parent_sha}\n" 
         path = Path(self.output_path) / self.file
-        self._write(path, msg)
+        #self._write(path, msg)
+        self._write_csv(path, row=[self.repo_id, current_sha, parent_sha], header=["repo", "patched_sha", "original_sha"])
 
         return stats
     
@@ -53,20 +55,23 @@ class Writer:
         stats.lines_added += total_add
         stats.lines_deleted += total_del
 
-        msg = get_pr_chain_msg(repo, commit, is_issue)
+        repo_id, current_sha, parent_sha = get_pr_chain_msg(repo, commit, is_issue)
         path = Path(self.output_path)
-        self._write(path, msg)
+        #self._write(path, msg)
+        self._write_csv(path, row=[self.repo_id, current_sha, parent_sha], header=["repo", "patched_sha", "original_sha"])
 
         return stats
 
     def write_improve(self, results: dict) -> None:
-        self.file = f"improved.txt"
+        self.file = f"improved.csv"
         path = Path(self.output_path) / self.file
-        new_sha: str = results['commit_info']["new_sha"]
-        old_sha: str = results['commit_info']["old_sha"]
+        current_sha: str = results['commit_info']["new_sha"]
+        parent_sha: str = results['commit_info']["old_sha"]
         repo_id: str = results['metadata']['repository_name']
-        msg = f"{repo_id} | {new_sha} | {old_sha}\n"
-        self._write(path, msg)
+        #msg = f"{repo_id} | {new_sha} | {old_sha}\n"
+        #self._write(path, msg)
+        self._write_csv(path, row=[self.repo_id, current_sha, parent_sha], header=["repo", "patched_sha", "original_sha"])
+
 
     def write_results(self, results: dict) -> None:
         new_sha: str = results['commit_info']["new_sha"]
@@ -87,13 +92,16 @@ class Writer:
             f.flush()
             os.fsync(f.fileno())
             fcntl.flock(f, fcntl.LOCK_UN)
-    """
-    def _write(self, path: Path, msg: str) -> None:
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open("a", encoding="utf-8", errors="ignore") as f:
-                f.write(msg)
-            logging.info(f"[{self.owner}/{self.name}] Wrote data to {path}")
-        except (OSError, IOError) as e:
-            logging.error(f"[{self.owner}/{self.name}] Failed to write to {path}: {e}", exc_info=True)
-    """
+
+    def _write_csv(self, path: Path, row: list[str], header: Optional[list[str]] = None) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        file_exists = path.exists()
+        with open(path, "a", encoding="utf-8", newline="") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            writer = csv.writer(f)
+            if header and (not file_exists or path.stat().st_size == 0):
+                writer.writerow(header)
+            writer.writerow(row)
+            f.flush()
+            os.fsync(f.fileno())
+            fcntl.flock(f, fcntl.LOCK_UN)

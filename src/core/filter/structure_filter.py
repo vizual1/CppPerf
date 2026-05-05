@@ -121,7 +121,7 @@ class StructureFilter:
                 content_file = self._attempts(item.path, repo, sha) #.repo.get_contents(item.path, ref=self.sha)
                 target_path = dest / item.path
                 os.makedirs(target_path.parent, exist_ok=True)
-                if isinstance(content_file, ContentFile):
+                if isinstance(content_file, ContentFile) and content_file:
                     with open(target_path, "wb") as f:
                         f.write(content_file.decoded_content)
                     result_paths.append(str(target_path))

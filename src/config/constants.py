@@ -5,12 +5,12 @@ DATA_DIR = Path("data").absolute()
 CACHE_DIR = Path("cache").absolute()
 
 STORAGE_PATHS = {
-    "collect": DATA_DIR / "collect.txt",
-    "commits": DATA_DIR / "filtered_commits.txt",
+    "collect": DATA_DIR / "collect.csv",
+    "commits": DATA_DIR / "filtered_commits.csv",
     "performance": DATA_DIR / "commits",
-    "repos": DATA_DIR / "repos.txt",
-    "fail": DATA_DIR / "fail.txt",
-    "discovered": DATA_DIR / "discovered.txt",
+    "repos": DATA_DIR / "repos.csv",
+    "fail": DATA_DIR / "fail.csv",
+    "discovered": DATA_DIR / "discovered.csv",
     "clones": DATA_DIR / "tmp",
 
     "cmake-dep": CACHE_DIR / "cmake-dep.json"

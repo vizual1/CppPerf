@@ -1,6 +1,5 @@
-import logging, ast, json
+import logging, json, csv
 from pathlib import Path
-from src.config.config import Config
 from github.Commit import Commit
 
 class CommitHandler:
@@ -55,40 +54,79 @@ class CommitHandler:
         old_path = commit_root / "old"
         new_path = commit_root / "new"
         return new_path, old_path
-
+    
     def _get_filtered_commits(self, path: Path) -> list[tuple[str, str, str]]:
-        """
-        Extract commit pairs from a text file.
-        Expected line format:
-            <repo_id> | <new_sha> | <old_sha>
-        """
         commits_info: list[tuple[str, str, str]] = []
 
         if not path.exists():
             logging.warning(f"Commit file not found: {path}")
             return commits_info
-        
+
         try:
-            with open(path, 'r', errors='ignore') as f:
-                for line_no, line in enumerate(f, start=1):
-                    stripped = line.strip()
-                    if not stripped or stripped.startswith("#"):
-                        continue
+            suffix = path.suffix.lower()
 
-                    parts = [p.strip() for p in stripped.split("|") if p.strip()]
-                    if len(parts) < 3:
-                        logging.warning(f"Malformed commit line at {path}:{line_no} -> {stripped}")
-                        continue
+            if suffix == ".csv":
+                return self._get_filtered_commits_csv(path)
 
-                    repo_id = parts[0]
-                    new_sha = parts[1]
-                    old_sha = parts[2]
-                    
-                    commits_info.append((repo_id, new_sha, old_sha))
+            elif suffix == ".json":
+                return self._get_filtered_commits_json(path)
+
+            else:
+                logging.warning(f"Unsupported file type '{suffix}' for {path}")
+                return commits_info
+
+        except Exception as e:
+            logging.error(f"Failed to read commits from {path}: {e}", exc_info=True)
+            return commits_info
+        
+
+    def _get_filtered_commits_csv(self, path: Path) -> list[tuple[str, str, str]]:
+        commits_info: list[tuple[str, str, str]] = []
+
+        try:
+            with open(path, "r", encoding="utf-8", newline="") as f:
+                reader = csv.DictReader(f)
+
+                required = {"repo", "patched_sha", "original_sha"}
+                if not reader.fieldnames or not required.issubset(reader.fieldnames):
+                    raise ValueError(
+                        f"{path} missing required columns {required}, found {reader.fieldnames}"
+                    )
+
+                for i, row in enumerate(reader, start=2):
+                    try:
+                        repo_id = (row.get("repo") or "").strip()
+                        new_sha = (row.get("patched_sha") or "").strip()
+                        old_sha = (row.get("original_sha") or "").strip()
+
+                        if not repo_id or not new_sha or not old_sha:
+                            logging.warning(f"Incomplete row at {path}:{i} -> {row}")
+                            continue
+
+                        commits_info.append((repo_id, new_sha, old_sha))
+
+                    except Exception as e:
+                        logging.warning(f"Error parsing row {i} in {path}: {e}")
+                        continue
 
         except (OSError, IOError) as e:
-            logging.error(f"Failed to read commits from {path}: {e}", exc_info=True)
+            logging.error(f"Failed to read CSV commits from {path}: {e}", exc_info=True)
 
+        return commits_info
+    
+    def _get_filtered_commits_json(self, path: Path) -> list[tuple[str, str, str]]:
+        commits_info: list[tuple[str, str, str]] = []
+
+        with open(path, 'r', errors='ignore') as f:
+            res = json.load(f)
+
+        metadata = res['metadata']
+        commit_info = res['commit_info']
+        repo_id = metadata['repository_name']
+        new_sha = commit_info['new_sha']
+        old_sha = commit_info['old_sha']
+        commits_info.append((repo_id, new_sha.strip(), old_sha.strip()))
+        
         return commits_info
 
     def get_file_prefix(self, repo_id: str) -> str:

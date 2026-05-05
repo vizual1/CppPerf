@@ -146,7 +146,6 @@ class DockerManager:
             if exit_code != 0:
                 logging.error(f"Copying the commands to {save}.sh failed with: {exit_code}")
         
-
     def load_docker_image(self, tar_path: Path):
         self.client = docker.from_env()
         with open(tar_path, "rb") as f:
