@@ -57,12 +57,9 @@ class RepositoryCollector:
             while window_end > start_boundary and count < limit:
                 window_start = max(start_boundary, window_end - window_size)
                 pushed_range = f"pushed:{window_start.date()}..{window_end.date()}"
-                query = f"{pushed_range}, language:{self.language}, archived:false,"
-
-                if getattr(self.config, "stars", None):
-                    query += f" stars:<={self.config.discover.stars}"
-                    query += f" stars:>={self.config.discover.min_stars}"
-
+                query = f"{pushed_range} language:{self.language} archived:false"
+                query += f" stars:{self.config.discover.min_stars}..{self.config.discover.stars}"
+                    
                 logging.info(f"Query: {query}")
 
                 try:
