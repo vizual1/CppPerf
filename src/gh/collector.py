@@ -26,7 +26,7 @@ class RepositoryCollector:
 
     def get_repos(self) -> list[str]:
         """Get repository IDs from input file or default location."""
-        path = self.config.input or self.config.storage_paths["repos"]
+        path = self.config.input or self.config.storage_paths["collect"]
         logging.debug(f"Loading repos from: {path}")
         return self._get_repo_ids(path)
     

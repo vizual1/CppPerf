@@ -235,7 +235,7 @@ class DockerTester:
         )
         logging.info(f"Results: {results['performance_analysis']}")
         writer = Writer(repo.full_name, self.config.output or self.config.storage_paths["performance"])
-        writer.write_results(results)
+        writer.write_results(results, bool(self.config.benchmark.diff))
 
         if not self.config.command == "benchmark":
             old_process.save_docker_image(repo.full_name, new_sha, new_build_cmd, old_build_cmd, new_test_cmd, old_test_cmd, results)

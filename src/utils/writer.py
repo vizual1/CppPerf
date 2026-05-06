@@ -73,9 +73,9 @@ class Writer:
         self._write_csv(path, row=[self.repo_id, current_sha, parent_sha], header=["repo", "patched_sha", "original_sha"])
 
 
-    def write_results(self, results: dict) -> None:
+    def write_results(self, results: dict, has_diff: bool) -> None:
         new_sha: str = results['commit_info']["new_sha"]
-        file = f"{self.owner}_{self.name}_{new_sha}.json"
+        file = f"{self.owner}_{self.name}_{new_sha}{'_patch' if has_diff else ''}.json"
         path = Path(self.output_path) / file
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:

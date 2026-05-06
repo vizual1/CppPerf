@@ -35,12 +35,12 @@ def inspect_result(repo: str, newsha: str, data_dir: str = "data/commits"):
     print("\n---------------- BUILD / TEST ----------------")
     print(f"Build: {'SUCCESS' if logs['build_success'] else 'FAIL'}")
     print(f"Tests: {'PASS' if logs['test_success'] else 'FAIL'}")
-    print(f"Runtime: {logs.get('test_runtime', 0.0):.2f}s")
+    print(f"Test Runtime: {logs.get('test_runtime', 0.0):.2f}s")
 
     print("\n---------------- PERFORMANCE ----------------")
-    print(f"Improvement: {perf['relative_improvement']*100:.3f}%")
+    print(f"Runtime Improvement: {perf['relative_improvement']*100:.3f}%")
     print(f"Effect size (Cohen's d): {perf['effect_size_cohens_d']:.3f}")
-    print(f"p-value: {perf['p_value']:.6f}")
+    print(f"p-value: {perf['pair_p_value']:.6f}")
 
     sig = "YES" if perf["is_pair_significant"] else "NO"
     print(f"Statistically significant: {sig}")
@@ -50,7 +50,7 @@ def inspect_result(repo: str, newsha: str, data_dir: str = "data/commits"):
     print(f"Significant Regressions: {tests['significant_pair_regressions']}")
     print(f"Significant Improvements: {tests['significant_pair_improvements']}")
     significant_tests = tests['significant_pair_improvements_tests']
-    print(f"Significant Tests:")
+    print(f"Tests with Significant Runtime Improvements:")
     for f in significant_tests[:10]:
         print(f"  - {f}")
     if len(files) > 10:

@@ -32,7 +32,7 @@ class Controller:
             if self.config.command == "inspect":
                 self._inspect()
 
-            if self.config.command == "discover" and self.config.discover.repos > 0 and not self.config.discover.filter:
+            if self.config.command == "discover" and self.config.discover.repos > 0:
                 self.config.artifact.generate = False
                 self._collect()
             

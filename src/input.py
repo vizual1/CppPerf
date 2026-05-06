@@ -38,9 +38,9 @@ def setup_parser() -> argparse.ArgumentParser:
     inspect.add_argument("--id", type=str, help="Inspect owner_repo_newsha")
 
     source_group = discover.add_argument_group("Source Options")
-    source_group.add_argument("--repos", type=int, default=10, help="Limit number of mined repositories (default: 10)")
-    source_group.add_argument("--stars", type=int, default=1000, help="Maximum popularity (star count) for mined repositories (default: 1000).")
-    source_group.add_argument("--min_stars", type=int, default=20, help="Minimum popularity (star count) for mined repositories (default: 20).")
+    source_group.add_argument("--repos", type=int, help="Limit number of mined repositories (default: 10)")
+    source_group.add_argument("--stars", type=int, help="Maximum popularity (star count) for mined repositories (default: 1000).")
+    source_group.add_argument("--min_stars", type=int, help="Minimum popularity (star count) for mined repositories (default: 20).")
     source_group.add_argument("--blacklist", type=str, help="Blacklist to skip repositories in the mining process.")
 
     filter_group = discover.add_argument_group("Filtering")

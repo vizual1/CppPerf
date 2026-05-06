@@ -151,19 +151,20 @@ Results are in:
 
 ## Project Structure
 ```
-├── main.py                  # Main entry point
-├── src/                     # Source code
-│   ├── core/                # Core functionality
-│   └── config/              # Configuration handling
-│       └── config.py        # Main project configuration file
-│       └── settings.py      # LLM, test, resource settings
+├── config/
+│   └── config.yaml          # Configurations
 ├── data/                    # Output directory
 │   ├── collect.txt          # Collected repositories
 │   ├── testcollect.txt      # Validated repositories
 │   ├── fail.txt             # Failed repositories
 │   ├── filtered_commits.txt # Filtered commits
 │   └── commits/             # Individual commit test results
-└── docker/                  # Docker configuration files
+├── docker/                  # Docker configuration files
+├── src/                     # Source code
+│   ├── core/                # Core functionality
+│   └── config/              # Configuration handling
+├── .env                     # Environmental variables
+└── main.py                  # Main entry point
 ```
 
 ---

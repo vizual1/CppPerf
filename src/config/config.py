@@ -14,12 +14,13 @@ from src.config.env_loader import load_env
 @dataclass
 class DiscoverConfig:
     repos: int = 0
-    stars: int = 1000
+    stars: int = 1000000
     min_stars: int = 20
     filter: str = ""
     test: bool = False
     limit: int = -1
     blacklist: str = ""
+
 @dataclass
 class ValidateConfig:
     repositories: bool = False
