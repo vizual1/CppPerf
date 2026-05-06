@@ -7,8 +7,8 @@ llm:
   dependency_resolver_enabled: False # need to set resolver_model
   
 testing:
-  warmup: 0
-  commit_test_times: 1
+  warmup: 1
+  commit_test_times: 30
   max_test_time: 1800
   docker_test_dir: /test_workspace
 
