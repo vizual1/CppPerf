@@ -191,3 +191,7 @@ python3 test.py
 CppPerf (both CppPerf-Mine and CppPerf-DB) is licensed under the [Apache License 2.0](LICENSE).
 
 The C++ source code contained within each Docker image retains the license of its upstream repository.
+
+## Zenodo
+
+This repo is also available on Zenodo [here](https://doi.org/10.5281/zenodo.20097425).
