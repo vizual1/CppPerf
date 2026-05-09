@@ -185,3 +185,9 @@ Run a minimal pipeline test:
 ```bash
 python3 test.py
 ```
+
+## License
+
+CppPerf (both CppPerf-Mine and CppPerf-DB) is licensed under the [Apache License 2.0](LICENSE).
+
+The C++ source code contained within each Docker image retains the license of its upstream repository.
